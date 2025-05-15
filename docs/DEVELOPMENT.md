@@ -13,10 +13,8 @@ This guide contains information for developers who want to contribute to, build,
 ### Getting the Source Code
 
 ```bash
-git clone https://github.com/IntelLabs/tdx-workload-attestation.git tdx-workload-attestation
-git clone https://github.com/intel-sandbox/frameworks.orchestration.c2pa_ml.rust.git c2pa_ml
-git clone https://github.com/intel-sandbox/frameworks.orchestration.c2pa_ml_cli.rust.git c2pa_ml_cli
-cd c2pa_ml_cli
+git clone https://github.com/IntelLabs/atlas-cli
+cd atlas-cli
 ```
 
 ### Development Tools
