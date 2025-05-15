@@ -1,0 +1,46 @@
+[package]
+name = "atlas-cli"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+yaml = []
+with-tdx = ["tdx_workload_attestation/host-gcp-tdx"]
+
+[dependencies]
+atlas-c2pa-lib = { version = "0.1.0" }
+
+# Core libraries
+base64 = "0.21"
+chrono = "0.4.41"  # For timestamp generation in mock attestation reports
+env_logger = "0.10"
+hex = "0.4"
+indicatif = "0.17"
+lazy_static = "1.4"
+log = "0.4"
+openssl = "0.10.72"
+sha2 = "0.10"
+thiserror = "1.0"
+time = { version = "0.3", features = ["serde"] }
+uuid = { version = "1.6", features = ["v4"] }
+walkdir = "2.4"
+
+# CLI and async/runtime
+clap = { version = "4.4", features = ["derive"] }
+tokio = "1.38.2"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_cbor = "0.11"
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# HTTP client
+reqwest = { version = "0.11", features = ["blocking", "json"] }
+
+# TDX
+tdx_workload_attestation = { version = "0.1.0", default-features = false }
+
+[dev-dependencies]
+tempfile = "3.2"
