@@ -7,20 +7,80 @@ use std::path::Path;
 
 pub fn determine_model_type(path: &Path) -> Result<AssetType> {
     match path.extension().and_then(|ext| ext.to_str()) {
+        // TensorFlow models
+        Some("pb") | Some("savedmodel") | Some("tf") => Ok(AssetType::ModelTensorFlow),
+
+        // PyTorch models
+        Some("pt") | Some("pth") | Some("pytorch") => Ok(AssetType::ModelPytorch),
+
+        // ONNX models
         Some("onnx") => Ok(AssetType::ModelOnnx),
-        Some("pb") => Ok(AssetType::ModelTensorFlow),
-        Some("pt") | Some("pth") => Ok(AssetType::ModelPytorch),
-        Some("h5") => Ok(AssetType::ModelKeras),
-        _ => Err(Error::Validation("Unsupported model format".to_string())),
+
+        // OpenVINO models
+        Some("bin") | Some("xml") => Ok(AssetType::ModelOpenVino),
+
+        // Keras models
+        Some("h5") | Some("keras") | Some("hdf5") => Ok(AssetType::ModelKeras),
+
+        // JAX models
+        Some("jax") => Ok(AssetType::ModelJax),
+
+        // ML.NET models
+        Some("mlnet") | Some("zip") => Ok(AssetType::ModelMlNet),
+
+        // MXNet models
+        Some("params") | Some("json") | Some("mxnet") => Ok(AssetType::ModelMxNet),
+
+        // Format types
+        Some("npy") | Some("npz") => Ok(AssetType::FormatNumpy),
+        Some("protobuf") | Some("proto") => Ok(AssetType::FormatProtobuf),
+        Some("pkl") | Some("pickle") => Ok(AssetType::FormatPickle),
+
+        // Default generic model when extension doesn't match
+        Some(_) => Ok(AssetType::Model),
+
+        // No extension
+        None => Err(Error::Validation(
+            "Unsupported model format: file has no extension".to_string(),
+        )),
     }
 }
 
 pub fn determine_format(path: &Path) -> Result<String> {
     match path.extension().and_then(|ext| ext.to_str()) {
-        Some("onnx") => Ok("application/onnx".to_string()),
+        // TensorFlow models
         Some("pb") => Ok("application/x-protobuf".to_string()),
-        Some("pt") | Some("pth") => Ok("application/x-pytorch".to_string()),
-        Some("h5") => Ok("application/x-hdf5".to_string()),
+        Some("savedmodel") | Some("tf") => Ok("application/x-tensorflow".to_string()),
+
+        // PyTorch models
+        Some("pt") | Some("pth") | Some("pytorch") => Ok("application/x-pytorch".to_string()),
+
+        // ONNX models
+        Some("onnx") => Ok("application/onnx".to_string()),
+
+        // OpenVINO models
+        Some("bin") | Some("xml") => Ok("application/x-openvino".to_string()),
+
+        // Keras models
+        Some("h5") | Some("keras") | Some("hdf5") => Ok("application/x-hdf5".to_string()),
+
+        // JAX models
+        Some("jax") => Ok("application/x-jax".to_string()),
+
+        // ML.NET models
+        Some("mlnet") => Ok("application/x-mlnet".to_string()),
+        Some("zip") => Ok("application/zip".to_string()),
+
+        // MXNet models
+        Some("params") | Some("mxnet") => Ok("application/x-mxnet".to_string()),
+        Some("json") => Ok("application/json".to_string()),
+
+        // Format types
+        Some("npy") | Some("npz") => Ok("application/x-numpy".to_string()),
+        Some("protobuf") | Some("proto") => Ok("application/x-protobuf".to_string()),
+        Some("pkl") | Some("pickle") => Ok("application/x-pickle".to_string()),
+
+        // Default
         _ => Ok("application/octet-stream".to_string()),
     }
 }
@@ -64,11 +124,64 @@ pub fn determine_software_type(path: &Path) -> Result<AssetType> {
     }
 }
 
-pub fn determine_dataset_type(_path: &Path) -> Result<AssetType> {
-    // Always return Dataset type for now
-    Ok(AssetType::Dataset)
-}
+pub fn determine_dataset_type(path: &Path) -> Result<AssetType> {
+    match path.extension().and_then(|ext| ext.to_str()) {
+        // Common dataset formats
+        Some("csv") | Some("tsv") | Some("txt") => Ok(AssetType::Dataset),
 
+        // JSON-based datasets
+        Some("json") | Some("jsonl") => Ok(AssetType::Dataset),
+
+        // Parquet and other columnar formats
+        Some("parquet") | Some("orc") | Some("avro") => Ok(AssetType::Dataset),
+
+        // TensorFlow specific datasets
+        Some("tfrecord") | Some("tfrec") => Ok(AssetType::DatasetTensorFlow),
+        Some("pb") | Some("proto") | Some("tf") => Ok(AssetType::DatasetTensorFlow),
+
+        // PyTorch specific datasets
+        Some("pt") | Some("pth") | Some("pytorch") => Ok(AssetType::DatasetPytorch),
+
+        // ONNX specific datasets
+        Some("onnx") => Ok(AssetType::DatasetOnnx),
+
+        // OpenVINO specific datasets
+        Some("bin") | Some("xml") => Ok(AssetType::DatasetOpenVino),
+
+        // Keras specific datasets
+        Some("h5") | Some("hdf5") | Some("keras") => Ok(AssetType::DatasetKeras),
+
+        // JAX specific datasets
+        Some("jax") => Ok(AssetType::DatasetJax),
+
+        // ML.NET specific datasets
+        Some("mlnet") | Some("zip") => Ok(AssetType::DatasetMlNet),
+
+        // MXNet specific datasets
+        Some("rec") | Some("idx") | Some("params") | Some("lst") | Some("mxnet") => {
+            Ok(AssetType::DatasetMxNet)
+        }
+
+        // NumPy formats (could be any framework)
+        Some("npy") | Some("npz") => Ok(AssetType::Dataset),
+
+        // Pickle formats (could be any framework)
+        Some("pkl") | Some("pickle") => Ok(AssetType::Dataset),
+
+        // Images and other media that might be datasets
+        Some("jpg") | Some("jpeg") | Some("png") | Some("bmp") | Some("tiff") => {
+            Ok(AssetType::Dataset)
+        }
+
+        // Default to generic dataset for any other extension
+        Some(_) => Ok(AssetType::Dataset),
+
+        // No extension
+        None => Err(Error::Validation(
+            "Unsupported dataset format: file has no extension".to_string(),
+        )),
+    }
+}
 /// This function examines the ingredients and assertions in the manifest
 /// to determine whether it's a Dataset, Model, Software, or other type.
 pub fn determine_manifest_type(manifest: &Manifest) -> ManifestType {
