@@ -20,7 +20,7 @@ git clone https://github.com/intel-sandbox/frameworks.orchestration.c2pa_ml.rust
 git clone https://github.com/intel-sandbox/frameworks.orchestration.c2pa_ml_cli.rust.git c2pa_ml_cli
 
 # Build CLI
-cd c2pa_ml_cli && cargo build
+cd atlas-cli && cargo build
 ```
 
 ## Documentation
