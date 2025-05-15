@@ -15,9 +15,7 @@ A command-line interface tool for creating, managing, and verifying Content Prov
 
 ```bash
 # Clone repositories
-git clone https://github.com/IntelLabs/tdx-workload-attestation.git tdx-workload-attestation
-git clone https://github.com/intel-sandbox/frameworks.orchestration.c2pa_ml.rust.git c2pa_ml
-git clone https://github.com/intel-sandbox/frameworks.orchestration.c2pa_ml_cli.rust.git c2pa_ml_cli
+git clone https://github.com/IntelLabs/atlas-cli
 
 # Build CLI
 cd atlas-cli && cargo build
