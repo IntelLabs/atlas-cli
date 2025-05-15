@@ -22,12 +22,10 @@ This guide provides detailed information on installing, configuring, and using t
 
 ```bash
 # Clone repositories
-git clone https://github.com/IntelLabs/tdx-workload-attestation.git tdx-workload-attestation
-git clone https://github.com/intel-sandbox/frameworks.orchestration.c2pa_ml.rust.git c2pa_ml
-git clone https://github.com/intel-sandbox/frameworks.orchestration.c2pa_ml_cli.rust.git c2pa_ml_cli
+git clone https://github.com/IntelLabs/atlas-cli
 
 # Build CLI
-cd c2pa_ml_cli && cargo build
+cd atlas-cli && make
 
 # Install (optional)
 make install
