@@ -11,6 +11,9 @@ with-tdx = ["tdx_workload_attestation/host-gcp-tdx"]
 [dependencies]
 atlas-c2pa-lib = { version = "0.1.0" }
 
+# TDX
+tdx_workload_attestation = { version = "0.1.0", default-features = false }
+
 # Core libraries
 base64 = "0.21"
 chrono = "0.4.41"  # For timestamp generation in mock attestation reports
@@ -38,9 +41,6 @@ serde_yaml = "0.9"
 
 # HTTP client
 reqwest = { version = "0.11", features = ["blocking", "json"] }
-
-# TDX
-tdx_workload_attestation = { version = "0.1.0", default-features = false }
 
 [dev-dependencies]
 tempfile = "3.2"

@@ -50,7 +50,7 @@ The C2PA ML CLI provides the following main commands:
 ### Model Commands
 
 ```
-c2pa_ml_cli model [SUBCOMMAND]
+atlas-cli model [SUBCOMMAND]
 ```
 
 Subcommands:

@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use crate::manifest::utils::{determine_manifest_type, manifest_type_to_string};
 use crate::storage::traits::{ManifestMetadata, ManifestType, StorageBackend};
-use c2pa_ml::manifest::Manifest;
+use atlas_c2pa_lib::manifest::Manifest;
 use reqwest::blocking::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

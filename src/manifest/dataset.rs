@@ -2,8 +2,8 @@ use crate::error::Result;
 use crate::manifest::common::{list_manifests, verify_manifest, AssetKind};
 use crate::manifest::config::ManifestCreationConfig;
 use crate::storage::traits::StorageBackend;
-use c2pa_ml::asset_type::AssetType;
-use c2pa_ml::ingredient::{Ingredient, IngredientData};
+use atlas_c2pa_lib::asset_type::AssetType;
+use atlas_c2pa_lib::ingredient::{Ingredient, IngredientData};
 use std::path::Path;
 use uuid::Uuid;
 

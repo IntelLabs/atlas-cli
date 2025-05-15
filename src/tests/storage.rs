@@ -6,8 +6,8 @@ use crate::storage::filesystem::FilesystemStorage;
 use crate::storage::traits::ArtifactLocation;
 use crate::storage::traits::StorageBackend;
 use crate::utils::safe_create_file;
-use c2pa_ml::datetime_wrapper::OffsetDateTimeWrapper;
-use c2pa_ml::manifest::Manifest;
+use atlas_c2pa_lib::datetime_wrapper::OffsetDateTimeWrapper;
+use atlas_c2pa_lib::manifest::Manifest;
 use sha2::Digest;
 use std::fs;
 use std::io::Write;
@@ -253,7 +253,7 @@ fn test_filesystem_storage_linking() -> Result<()> {
     let dataset_json = serde_json::to_string(&dataset_manifest)?;
     let dataset_hash = hex::encode(sha2::Sha256::digest(dataset_json.as_bytes()));
 
-    let cross_ref = c2pa_ml::cross_reference::CrossReference {
+    let cross_ref = atlas_c2pa_lib::cross_reference::CrossReference {
         manifest_url: dataset_id.clone(),
         manifest_hash: dataset_hash,
         media_type: Some("application/json".to_string()),

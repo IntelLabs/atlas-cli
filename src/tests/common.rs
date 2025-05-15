@@ -1,8 +1,8 @@
 use crate::error::{Error, Result};
 use crate::storage::traits::{ManifestMetadata, ManifestType, StorageBackend};
-use c2pa_ml::claim::ClaimV2;
-use c2pa_ml::datetime_wrapper::OffsetDateTimeWrapper;
-use c2pa_ml::manifest::Manifest;
+use atlas_c2pa_lib::claim::ClaimV2;
+use atlas_c2pa_lib::datetime_wrapper::OffsetDateTimeWrapper;
+use atlas_c2pa_lib::manifest::Manifest;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use time::OffsetDateTime;
@@ -58,10 +58,10 @@ impl StorageBackend for MockStorageBackend {
                 manifest_type: if manifest.ingredients.iter().any(|i| {
                     matches!(
                         i.data.data_types[0],
-                        c2pa_ml::asset_type::AssetType::Dataset
-                            | c2pa_ml::asset_type::AssetType::DatasetOnnx
-                            | c2pa_ml::asset_type::AssetType::DatasetTensorFlow
-                            | c2pa_ml::asset_type::AssetType::DatasetPytorch
+                        atlas_c2pa_lib::asset_type::AssetType::Dataset
+                            | atlas_c2pa_lib::asset_type::AssetType::DatasetOnnx
+                            | atlas_c2pa_lib::asset_type::AssetType::DatasetTensorFlow
+                            | atlas_c2pa_lib::asset_type::AssetType::DatasetPytorch
                     )
                 }) {
                     ManifestType::Dataset

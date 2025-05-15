@@ -1,8 +1,8 @@
 use crate::error::{Error, Result};
 use crate::storage::traits::ManifestType;
-use c2pa_ml::assertion::Assertion;
-use c2pa_ml::asset_type::AssetType;
-use c2pa_ml::manifest::Manifest;
+use atlas_c2pa_lib::assertion::Assertion;
+use atlas_c2pa_lib::asset_type::AssetType;
+use atlas_c2pa_lib::manifest::Manifest;
 use std::path::Path;
 
 pub fn determine_model_type(path: &Path) -> Result<AssetType> {

@@ -2,7 +2,7 @@ use crate::error::{Error, Result};
 use crate::manifest::utils::determine_manifest_type;
 use crate::storage::traits::{ManifestMetadata, ManifestType, StorageBackend};
 use crate::utils::{safe_create_file, safe_open_file};
-use c2pa_ml::manifest::Manifest;
+use atlas_c2pa_lib::manifest::Manifest;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs::{self, create_dir_all};

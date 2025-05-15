@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
 use crate::storage::traits::{ManifestMetadata, StorageBackend};
-use c2pa_ml::manifest::Manifest;
+use atlas_c2pa_lib::manifest::Manifest;
 use reqwest;
 
 #[allow(dead_code)]

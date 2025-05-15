@@ -3,7 +3,7 @@ use crate::manifest::common::{self, list_manifests, verify_manifest, AssetKind};
 use crate::manifest::config::ManifestCreationConfig;
 use crate::manifest::{determine_manifest_type, manifest_type_to_str};
 use crate::storage::traits::StorageBackend;
-use c2pa_ml::assertion::Assertion;
+use atlas_c2pa_lib::assertion::Assertion;
 use std::collections::HashMap;
 
 /// Create a new evaluation result manifest using the standard configuration
@@ -124,7 +124,7 @@ pub fn verify_evaluation_manifest(id: &str, storage: &dyn StorageBackend) -> Res
 }
 
 /// Check if a manifest is an evaluation result manifest
-fn is_evaluation_manifest(manifest: &c2pa_ml::manifest::Manifest) -> bool {
+fn is_evaluation_manifest(manifest: &atlas_c2pa_lib::manifest::Manifest) -> bool {
     if let Some(claim) = &manifest.claim_v2 {
         claim.created_assertions.iter().any(|assertion| {
             matches!(assertion, Assertion::CreativeWork(creative_work) if creative_work.creative_type == "EvaluationResult")

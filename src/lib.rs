@@ -1,4 +1,3 @@
-pub mod asset;
 pub mod cc_attestation;
 pub mod cli;
 pub mod error;

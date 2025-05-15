@@ -4,12 +4,14 @@ use crate::error::Result;
 use crate::hash::calculate_file_hash;
 use crate::manifest::{common::AssetKind, dataset, model};
 use crate::utils::safe_create_file;
-use c2pa_ml::assertion::{Action, ActionAssertion, Assertion, Author, CreativeWorkAssertion};
-use c2pa_ml::asset_type::AssetType;
-use c2pa_ml::claim::ClaimV2;
-use c2pa_ml::datetime_wrapper::OffsetDateTimeWrapper;
-use c2pa_ml::ingredient::{Ingredient, IngredientData};
-use c2pa_ml::manifest::Manifest;
+use atlas_c2pa_lib::assertion::{
+    Action, ActionAssertion, Assertion, Author, CreativeWorkAssertion,
+};
+use atlas_c2pa_lib::asset_type::AssetType;
+use atlas_c2pa_lib::claim::ClaimV2;
+use atlas_c2pa_lib::datetime_wrapper::OffsetDateTimeWrapper;
+use atlas_c2pa_lib::ingredient::{Ingredient, IngredientData};
+use atlas_c2pa_lib::manifest::Manifest;
 use std::io::Write;
 use tempfile::tempdir;
 use time::OffsetDateTime;
@@ -277,7 +279,7 @@ fn test_cross_reference_verification() -> Result<()> {
     let dataset_hash = hex::encode(Sha256::digest(dataset_json.as_bytes()));
 
     // Add cross-reference to model manifest
-    let cross_ref = c2pa_ml::cross_reference::CrossReference {
+    let cross_ref = atlas_c2pa_lib::cross_reference::CrossReference {
         manifest_url: dataset_id.clone(),
         manifest_hash: dataset_hash,
         media_type: Some("application/json".to_string()),
@@ -526,7 +528,7 @@ fn test_evaluation_with_both_conditions() -> Result<()> {
             .map_err(|e| crate::error::Error::Serialization(e.to_string()))?;
         let model_hash = hex::encode(Sha256::digest(model_json.as_bytes()));
 
-        cross_references.push(c2pa_ml::cross_reference::CrossReference {
+        cross_references.push(atlas_c2pa_lib::cross_reference::CrossReference {
             manifest_url: model_id.clone(),
             manifest_hash: model_hash,
             media_type: Some("application/json".to_string()),
@@ -539,7 +541,7 @@ fn test_evaluation_with_both_conditions() -> Result<()> {
             .map_err(|e| crate::error::Error::Serialization(e.to_string()))?;
         let dataset_hash = hex::encode(Sha256::digest(dataset_json.as_bytes()));
 
-        cross_references.push(c2pa_ml::cross_reference::CrossReference {
+        cross_references.push(atlas_c2pa_lib::cross_reference::CrossReference {
             manifest_url: dataset_id.clone(),
             manifest_hash: dataset_hash,
             media_type: Some("application/json".to_string()),

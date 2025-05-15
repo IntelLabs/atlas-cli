@@ -1,6 +1,6 @@
 use crate::error::Error;
 use crate::error::Result;
-use c2pa_ml::manifest::Manifest;
+use atlas_c2pa_lib::manifest::Manifest;
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 use std::fmt;

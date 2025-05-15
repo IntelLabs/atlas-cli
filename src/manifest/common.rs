@@ -7,17 +7,17 @@ use crate::manifest::utils::{
 };
 use crate::signing;
 use crate::storage::traits::{ArtifactLocation, StorageBackend};
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine;
-use c2pa_ml::assertion::{
+use atlas_c2pa_lib::assertion::{
     Action, ActionAssertion, Assertion, Author, CreativeWorkAssertion, CustomAssertion,
 };
-use c2pa_ml::asset_type::AssetType;
-use c2pa_ml::claim::ClaimV2;
-use c2pa_ml::cross_reference::CrossReference;
-use c2pa_ml::datetime_wrapper::OffsetDateTimeWrapper;
-use c2pa_ml::ingredient::{Ingredient, IngredientData};
-use c2pa_ml::manifest::Manifest;
+use atlas_c2pa_lib::asset_type::AssetType;
+use atlas_c2pa_lib::claim::ClaimV2;
+use atlas_c2pa_lib::cross_reference::CrossReference;
+use atlas_c2pa_lib::datetime_wrapper::OffsetDateTimeWrapper;
+use atlas_c2pa_lib::ingredient::{Ingredient, IngredientData};
+use atlas_c2pa_lib::manifest::Manifest;
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use serde_json::to_string_pretty;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -341,7 +341,7 @@ pub fn verify_manifest(id: &str, storage: &dyn StorageBackend) -> Result<()> {
     let manifest = storage.retrieve_manifest(id)?;
 
     // Step 1: Verify the manifest structure
-    c2pa_ml::manifest::validate_manifest(&manifest)
+    atlas_c2pa_lib::manifest::validate_manifest(&manifest)
         .map_err(|e| crate::error::Error::Validation(e.to_string()))?;
 
     println!("Verifying manifest with ID: {}", id);

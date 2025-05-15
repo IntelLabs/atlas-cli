@@ -1,6 +1,6 @@
 use crate::error::{Error, Result};
 use crate::storage::traits::StorageBackend;
-use c2pa_ml::cross_reference::CrossReference;
+use atlas_c2pa_lib::cross_reference::CrossReference;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
@@ -134,8 +134,8 @@ pub fn link_manifests(
 
 // Create a versioned link when there's a conflict
 fn create_versioned_link(
-    mut source_manifest: c2pa_ml::manifest::Manifest,
-    target_manifest: c2pa_ml::manifest::Manifest,
+    mut source_manifest: atlas_c2pa_lib::manifest::Manifest,
+    target_manifest: atlas_c2pa_lib::manifest::Manifest,
     source_id: &str,
     target_id: &str,
     storage: &(impl StorageBackend + ?Sized),
@@ -235,7 +235,7 @@ pub fn show_manifest(id: &str, storage: &(impl StorageBackend + ?Sized)) -> Resu
     for (i, assertion) in manifest.claim.created_assertions.iter().enumerate() {
         println!("\nAssertion #{}", i + 1);
         match assertion {
-            c2pa_ml::assertion::Assertion::CreativeWork(creative) => {
+            atlas_c2pa_lib::assertion::Assertion::CreativeWork(creative) => {
                 println!("  Type: CreativeWork");
                 println!("  Context: {}", creative.context);
                 println!("  Creative Type: {}", creative.creative_type);
@@ -245,7 +245,7 @@ pub fn show_manifest(id: &str, storage: &(impl StorageBackend + ?Sized)) -> Resu
                     println!("    - {} ({})", author.name, author.author_type);
                 }
             }
-            c2pa_ml::assertion::Assertion::Action(action) => {
+            atlas_c2pa_lib::assertion::Assertion::Action(action) => {
                 println!("  Type: Action");
                 println!("  Actions:");
                 for action in &action.actions {
@@ -313,8 +313,8 @@ pub fn show_manifest(id: &str, storage: &(impl StorageBackend + ?Sized)) -> Resu
 pub mod linking {
     use crate::error::{Error, Result};
     use crate::storage::traits::StorageBackend;
-    use c2pa_ml::ingredient::{Ingredient, LinkedIngredient};
-    use c2pa_ml::manifest::Manifest;
+    use atlas_c2pa_lib::ingredient::{Ingredient, LinkedIngredient};
+    use atlas_c2pa_lib::manifest::Manifest;
 
     /// Links a dataset ingredient to a model ingredient
     pub fn link_dataset_to_model(
@@ -361,10 +361,10 @@ pub mod linking {
         manifest.ingredients.iter().any(|i| {
             matches!(
                 i.data.data_types[0],
-                c2pa_ml::asset_type::AssetType::Dataset
-                    | c2pa_ml::asset_type::AssetType::DatasetOnnx
-                    | c2pa_ml::asset_type::AssetType::DatasetTensorFlow
-                    | c2pa_ml::asset_type::AssetType::DatasetPytorch
+                atlas_c2pa_lib::asset_type::AssetType::Dataset
+                    | atlas_c2pa_lib::asset_type::AssetType::DatasetOnnx
+                    | atlas_c2pa_lib::asset_type::AssetType::DatasetTensorFlow
+                    | atlas_c2pa_lib::asset_type::AssetType::DatasetPytorch
             )
         })
     }
@@ -440,7 +440,7 @@ pub fn validate_linked_manifests(
                 }
 
                 // Check manifest structure
-                match c2pa_ml::manifest::validate_manifest(&referenced_manifest) {
+                match atlas_c2pa_lib::manifest::validate_manifest(&referenced_manifest) {
                     Ok(_) => println!("  ✓ Manifest structure validation successful"),
                     Err(e) => {
                         let error = format!("Manifest structure validation failed: {}", e);
@@ -784,9 +784,9 @@ fn build_provenance_graph(
         for assertion in &claim.created_assertions {
             let details = extract_assertion_details(assertion);
             let type_name = match assertion {
-                c2pa_ml::assertion::Assertion::CreativeWork(_) => "CreativeWork",
-                c2pa_ml::assertion::Assertion::Action(_) => "Action",
-                c2pa_ml::assertion::Assertion::DoNotTrain(_) => "DoNotTrain",
+                atlas_c2pa_lib::assertion::Assertion::CreativeWork(_) => "CreativeWork",
+                atlas_c2pa_lib::assertion::Assertion::Action(_) => "Action",
+                atlas_c2pa_lib::assertion::Assertion::DoNotTrain(_) => "DoNotTrain",
                 _ => "Other",
             };
             assertions.push(AssertionInfo {
@@ -867,9 +867,11 @@ fn build_provenance_graph(
 }
 
 /// Extract details from an assertion in a simplified form
-fn extract_assertion_details(assertion: &c2pa_ml::assertion::Assertion) -> serde_json::Value {
+fn extract_assertion_details(
+    assertion: &atlas_c2pa_lib::assertion::Assertion,
+) -> serde_json::Value {
     match assertion {
-        c2pa_ml::assertion::Assertion::CreativeWork(creative) => {
+        atlas_c2pa_lib::assertion::Assertion::CreativeWork(creative) => {
             serde_json::json!({
                 "creative_type": creative.creative_type,
                 "authors": creative.author.iter().map(|a| {
@@ -880,7 +882,7 @@ fn extract_assertion_details(assertion: &c2pa_ml::assertion::Assertion) -> serde
                 }).collect::<Vec<_>>(),
             })
         }
-        c2pa_ml::assertion::Assertion::Action(action) => {
+        atlas_c2pa_lib::assertion::Assertion::Action(action) => {
             serde_json::json!({
                 "actions": action.actions.iter().map(|a| {
                     let mut action_obj = serde_json::json!({
@@ -905,7 +907,7 @@ fn extract_assertion_details(assertion: &c2pa_ml::assertion::Assertion) -> serde
                 }).collect::<Vec<_>>(),
             })
         }
-        c2pa_ml::assertion::Assertion::DoNotTrain(do_not_train) => {
+        atlas_c2pa_lib::assertion::Assertion::DoNotTrain(do_not_train) => {
             serde_json::json!({
                 "reason": do_not_train.reason,
                 "enforced": do_not_train.enforced,

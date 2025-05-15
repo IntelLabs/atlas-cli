@@ -92,7 +92,7 @@ mod linux_tests {
 // Integration test for using attestation in manifests
 #[test]
 fn test_attestation_in_manifest() -> Result<()> {
-    use c2pa_ml::assertion::CustomAssertion;
+    use atlas_c2pa_lib::assertion::CustomAssertion;
     use tempfile::tempdir;
 
     // Create a simple temporary file for testing
