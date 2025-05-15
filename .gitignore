@@ -1,6 +1,2 @@
 /target
 *.*~
-# these need to be built separately
-endorsement.proto
-/src/cc_attestation/tdx/endorsement.rs
-GCE-cc-tcb-root_1.crt
