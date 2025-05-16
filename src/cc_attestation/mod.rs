@@ -7,7 +7,7 @@ use tdx_workload_attestation::get_platform_name;
 use tdx_workload_attestation::provider::AttestationProvider;
 
 #[cfg(feature = "with-tdx")]
-use tdx_workload_attestation::gcp::tdx::GcpTdxHost;
+use tdx_workload_attestation::gcp::GcpTdxHost;
 #[cfg(feature = "with-tdx")]
 use tdx_workload_attestation::host::TeeHost;
 #[cfg(feature = "with-tdx")]

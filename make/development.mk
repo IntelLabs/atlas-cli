@@ -20,6 +20,10 @@ check: fmt lint test
 test-verbose:
 	$(CARGO) test -- --nocapture $(TEST_FLAGS)
 
+# Run tests with output (`with-tdx` feature enabled)
+test-with-tdx:
+	CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER='sudo -E' $(CARGO) test --tests --features with-tdx $(TEST_FLAGS)
+
 # Watch for changes and run tests
 watch-test:
 	cargo watch -x test

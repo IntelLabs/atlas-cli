@@ -3,6 +3,7 @@ use crate::cc_attestation::mock::MockAttestationProvider;
 use crate::error::{Error, Result};
 use serde_json::Value;
 use tdx_workload_attestation::provider::AttestationProvider;
+use tdx_workload_attestation::get_platform_name;
 
 // Test that the mock attestation provider generates valid reports
 #[test]
@@ -31,16 +32,26 @@ fn test_mock_attestation() -> Result<()> {
 
 // Test that the get_report function works for unsupported platforms
 #[test]
-fn test_get_report_unsupported_platform() -> Result<()> {
-    // Try to get a report for an unsupported platform
+fn test_platform_selection() -> Result<()> {
+    // Try to get a report for any platform
     let report = cc_attestation::get_report(false)?;
 
     // Verify the report is valid JSON
     let report_json: Value = serde_json::from_str(&report)?;
 
-    // Verify it's a mock report
-    assert_eq!(report_json["type"], "mock_attestation");
-    // assert_eq!(report_json["platform"], "unsupported");
+    // Get the platform name
+    let platform_name = get_platform_name()
+	.map_err(|e| Error::CCAttestationError(e.to_string()))?;
+
+    // Verify the selected platform
+    if platform_name == "tdx-linux" {
+	// Verify the report contains an MRTD
+	assert_ne!(report_json["td_info"]["mrtd"].as_array(), None);
+    }
+    else {
+	// Verify it's a mock report
+	assert_eq!(report_json["type"], "mock_attestation");
+    }
 
     Ok(())
 }
@@ -48,45 +59,12 @@ fn test_get_report_unsupported_platform() -> Result<()> {
 // Test that the get_report function with show parameter works
 #[test]
 fn test_get_report_with_show() -> Result<()> {
-    let report = cc_attestation::get_report(false)?;
+    let report = cc_attestation::get_report(true)?;
 
     // Verify it returned a non-empty string
     assert!(!report.is_empty());
 
     Ok(())
-}
-
-// Test specific platform implementations conditionally
-#[cfg(feature = "with-tdx")]
-mod linux_tests {
-    use super::*;
-    use tdx_workload_attestation::tdx::LinuxTdxProvider;
-
-    // This test only runs on Linux
-    #[test]
-    fn test_linux_tdx_attestation() -> Result<()> {
-        let provider = LinuxTdxProvider::new();
-
-        match provider.get_attestation_report() {
-            Ok(report) => {
-                // Verify report is valid JSON
-                let _: Value = serde_json::from_str(&report)?;
-                Ok(())
-            }
-            Err(e) => {
-                // If test is running on hardware without TDX support, just print a warning
-                println!("⚠️ TDX attestation not available: {}", e);
-                Ok(())
-            }
-        }
-    }
-
-    // Test that TDX platform is selected on Linux
-    #[test]
-    fn test_tdx_provider_selection() {
-        // Just verify that the code runs without panicking
-        let _ = cc_attestation::get_report(false);
-    }
 }
 
 // Integration test for using attestation in manifests
