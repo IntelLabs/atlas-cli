@@ -94,6 +94,9 @@ examples/mnist/
         ├── eval_results.json
         └── eval_conf.json
 ```
+## Running the Workflow
+
+You can either follow the [step-by-step workflow](#step-by-step-workflow) below or run the entire process automatically using the [automated script](#automated-script).
 
 ## Step-by-Step Workflow
 
@@ -274,8 +277,6 @@ atlas-cli manifest export \
 ## Automated Script
 
 For convenience, we provide an automated script that runs the entire workflow as collect_mnist_provenance.sh file.
-
-```
 
 Run the automated script:
 
