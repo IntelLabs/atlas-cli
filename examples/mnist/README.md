@@ -320,7 +320,7 @@ Example provenance graph structure:
 
 ## Verification and Validation
 
-Verify the provenance data:
+Verify the provenance data (requires a running [database backend](#database-backend)):
 
 ```bash
 # Validate all cross-references
