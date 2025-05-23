@@ -4,6 +4,7 @@ use crate::manifest::config::ManifestCreationConfig;
 use crate::storage::traits::StorageBackend;
 use crate::tests::common::MockStorageBackend;
 use crate::utils::safe_create_file;
+use atlas_c2pa_lib::cose::HashAlgorithm;
 use std::io::Write;
 use tempfile::tempdir;
 
@@ -42,6 +43,7 @@ fn test_manifest_with_cc_attestation() -> Result<()> {
         print: true,
         output_format: "json".to_string(),
         key_path: None,
+        hash_alg: HashAlgorithm::Sha384,
         with_cc,
         software_type: None,
         version: None,
@@ -99,6 +101,7 @@ fn test_manifest_without_cc_attestation() -> Result<()> {
         print: true,
         output_format: "json".to_string(),
         key_path: None,
+        hash_alg: HashAlgorithm::Sha384,
         with_cc,
         software_type: None,
         version: None,
@@ -160,6 +163,7 @@ fn test_compare_manifests_with_and_without_attestation() -> Result<()> {
         print: false,
         output_format: "json".to_string(),
         key_path: None,
+        hash_alg: HashAlgorithm::Sha384,
         with_cc: true,
         software_type: None,
         version: None,
@@ -180,6 +184,7 @@ fn test_compare_manifests_with_and_without_attestation() -> Result<()> {
         print: false,
         output_format: "json".to_string(),
         key_path: None,
+        hash_alg: HashAlgorithm::Sha384,
         with_cc: false,
         software_type: None,
         version: None,

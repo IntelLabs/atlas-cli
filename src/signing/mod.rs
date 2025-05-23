@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use atlas_c2pa_lib::cose::HashAlgorithm;
 use openssl::hash::MessageDigest;
 use openssl::pkey::{PKey, Private, Public};
 use openssl::sign::Signer;
@@ -13,8 +14,18 @@ pub fn load_private_key(key_path: &Path) -> Result<PKey<Private>> {
         .map_err(|e| crate::error::Error::Signing(format!("Failed to load private key: {}", e)))
 }
 
-pub fn sign_data(data: &[u8], private_key: &PKey<Private>) -> Result<Vec<u8>> {
-    let mut signer = Signer::new(MessageDigest::sha256(), private_key)
+pub fn sign_data_with_algorithm(
+    data: &[u8],
+    private_key: &PKey<Private>,
+    algorithm: &HashAlgorithm,
+) -> Result<Vec<u8>> {
+    let message_digest = match algorithm {
+        HashAlgorithm::Sha256 => MessageDigest::sha256(),
+        HashAlgorithm::Sha384 => MessageDigest::sha384(),
+        HashAlgorithm::Sha512 => MessageDigest::sha512(),
+    };
+
+    let mut signer = Signer::new(message_digest, private_key)
         .map_err(|e| crate::error::Error::Signing(format!("Failed to create signer: {}", e)))?;
 
     signer
@@ -24,6 +35,10 @@ pub fn sign_data(data: &[u8], private_key: &PKey<Private>) -> Result<Vec<u8>> {
     signer
         .sign_to_vec()
         .map_err(|e| crate::error::Error::Signing(format!("Failed to sign data: {}", e)))
+}
+
+pub fn sign_data(data: &[u8], private_key: &PKey<Private>) -> Result<Vec<u8>> {
+    sign_data_with_algorithm(data, private_key, &HashAlgorithm::Sha384)
 }
 
 pub fn verify_signature(data: &[u8], signature: &[u8], public_key: &PKey<Public>) -> Result<bool> {

@@ -209,8 +209,9 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
         let claim_cbor =
             serde_cbor::to_vec(&claim).map_err(|e| Error::Serialization(e.to_string()))?;
 
-        // Sign the serialized claim
-        let signature = signing::sign_data(&claim_cbor, &private_key)?;
+        // Use the signing module with the specified algorithm
+        let signature =
+            signing::sign_data_with_algorithm(&claim_cbor, &private_key, &config.hash_alg)?;
 
         // Add signature to claim
         claim.signature = Some(STANDARD.encode(&signature));

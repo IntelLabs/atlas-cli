@@ -1,4 +1,5 @@
 use crate::storage::traits::StorageBackend;
+use atlas_c2pa_lib::cose::HashAlgorithm;
 use std::path::PathBuf;
 
 pub struct ManifestCreationConfig {
@@ -13,6 +14,7 @@ pub struct ManifestCreationConfig {
     pub print: bool,
     pub output_format: String,
     pub key_path: Option<PathBuf>,
+    pub hash_alg: HashAlgorithm,
     pub with_cc: bool,
     // Software-specific fields
     pub software_type: Option<String>,
@@ -35,6 +37,7 @@ impl ManifestCreationConfig {
             print: self.print,
             output_format: self.output_format.clone(),
             key_path: self.key_path.clone(),
+            hash_alg: self.hash_alg.clone(),
             with_cc: self.with_cc,
             software_type: self.software_type.clone(),
             version: self.version.clone(),

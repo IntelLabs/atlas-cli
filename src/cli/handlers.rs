@@ -30,6 +30,7 @@ pub fn handle_dataset_command(cmd: DatasetCommands) -> Result<()> {
             print,
             format,
             key,
+            hash_alg,
             with_tdx,
         } => {
             let storage: Option<&'static dyn StorageBackend> = match storage_type.as_str() {
@@ -60,6 +61,7 @@ pub fn handle_dataset_command(cmd: DatasetCommands) -> Result<()> {
                 print,
                 output_format: format,
                 key_path: key,
+                hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: with_tdx,
                 software_type: None,
                 version: None,
@@ -114,6 +116,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
             print,
             format,
             key,
+            hash_alg,
             with_tdx,
         } => {
             let storage: Option<&'static dyn StorageBackend> = match storage_type.as_str() {
@@ -144,6 +147,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
                 print,
                 output_format: format,
                 key_path: key,
+                hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: with_tdx,
                 software_type: None,
                 version: None,
@@ -314,6 +318,7 @@ pub fn handle_evaluation_command(cmd: EvaluationCommands) -> Result<()> {
             print,
             format,
             key,
+            hash_alg,
         } => {
             let storage: Option<&'static dyn StorageBackend> = match storage_type.as_str() {
                 "database" => {
@@ -343,6 +348,7 @@ pub fn handle_evaluation_command(cmd: EvaluationCommands) -> Result<()> {
                 print,
                 output_format: format,
                 key_path: key,
+                hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: false,
                 software_type: None,
                 version: None,
@@ -429,6 +435,7 @@ pub fn handle_software_command(cmd: SoftwareCommands) -> Result<()> {
             print,
             format,
             key,
+            hash_alg,
             with_tdx,
         } => {
             let storage: Option<&'static dyn StorageBackend> = match storage_type.as_str() {
@@ -459,6 +466,7 @@ pub fn handle_software_command(cmd: SoftwareCommands) -> Result<()> {
                 print,
                 output_format: format,
                 key_path: key,
+                hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: with_tdx,
                 software_type: Some(software_type.clone()),
                 version: version.clone(),
