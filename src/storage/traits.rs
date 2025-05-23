@@ -27,6 +27,7 @@ pub enum ManifestType {
     Dataset,
     Model,
     Software,
+    Unknown,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -42,6 +43,7 @@ impl fmt::Display for ManifestType {
             ManifestType::Dataset => write!(f, "Dataset"),
             ManifestType::Model => write!(f, "Model"),
             ManifestType::Software => write!(f, "Software"),
+            ManifestType::Unknown => write!(f, "Unknown"),
         }
     }
 }
