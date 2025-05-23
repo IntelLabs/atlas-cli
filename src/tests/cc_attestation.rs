@@ -2,8 +2,8 @@ use crate::cc_attestation;
 use crate::cc_attestation::mock::MockAttestationProvider;
 use crate::error::{Error, Result};
 use serde_json::Value;
-use tdx_workload_attestation::provider::AttestationProvider;
 use tdx_workload_attestation::get_platform_name;
+use tdx_workload_attestation::provider::AttestationProvider;
 
 // Test that the mock attestation provider generates valid reports
 #[test]
@@ -40,17 +40,16 @@ fn test_platform_selection() -> Result<()> {
     let report_json: Value = serde_json::from_str(&report)?;
 
     // Get the platform name
-    let platform_name = get_platform_name()
-	.map_err(|e| Error::CCAttestationError(e.to_string()))?;
+    let platform_name =
+        get_platform_name().map_err(|e| Error::CCAttestationError(e.to_string()))?;
 
     // Verify the selected platform
     if platform_name == "tdx-linux" {
-	// Verify the report contains an MRTD
-	assert_ne!(report_json["td_info"]["mrtd"].as_array(), None);
-    }
-    else {
-	// Verify it's a mock report
-	assert_eq!(report_json["type"], "mock_attestation");
+        // Verify the report contains an MRTD
+        assert_ne!(report_json["td_info"]["mrtd"].as_array(), None);
+    } else {
+        // Verify it's a mock report
+        assert_eq!(report_json["type"], "mock_attestation");
     }
 
     Ok(())
