@@ -222,7 +222,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_file_permissions() -> Result<()> {
+    fn test_load_key_with_restrictive_permissions() -> Result<()> {
         // Generate a test key and save it to a temporary file
         let (_, dir) = generate_temp_key()?;
         let key_path = dir.path().join("perm_test_key.pem");

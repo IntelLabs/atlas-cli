@@ -325,7 +325,7 @@ pub fn determine_manifest_type(manifest: &Manifest) -> ManifestType {
     }
 
     // Default case if nothing else matches
-    ManifestType::Model
+    ManifestType::Unknown
 }
 /// Get a string representation of the manifest type
 pub fn manifest_type_to_string(manifest_type: &ManifestType) -> String {
@@ -338,6 +338,7 @@ pub fn manifest_type_to_str(manifest_type: &ManifestType) -> &'static str {
         ManifestType::Dataset => "Dataset",
         ManifestType::Model => "Model",
         ManifestType::Software => "Software",
+        ManifestType::Unknown => "Unknown",
     }
 }
 
