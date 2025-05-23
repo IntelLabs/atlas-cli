@@ -35,7 +35,7 @@ dev-deps:
 
 # Generate test keys for signing
 generate-keys:
-	openssl genpkey -algorithm RSA -out private.pem -pkeyopt rsa_keygen_bits:2048
+	openssl genpkey -algorithm RSA -out private.pem -pkeyopt rsa_keygen_bits:4096
 	openssl rsa -pubout -in private.pem -out public.pem
 
 # Display version information
