@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "atlas-cli-example-mnist"
+version = "0.1.0"
+description = ""
+authors = ["Intel Corporation"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.10"
+
+colorlog              = "6.8.2"
+huggingface-hub       = "0.23.0"
+hydra-core            = "1.3.2"
+matplotlib            = "3.9.0"
+omegaconf             = "2.3.0"
+torch                 = {version = "^2.6.0"}
+torchvision           = {version = "^0.22.0"}
+tqdm                  = "4.66.3"
+
+[[tool.poetry.source]]
+name = "pytorch-gpu-src"
+url = "https://download.pytorch.org/whl/cu118"
+priority = "explicit"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
