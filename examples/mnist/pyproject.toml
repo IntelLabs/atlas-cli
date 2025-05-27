@@ -2,7 +2,7 @@
 name = "atlas-cli-example-mnist"
 version = "0.1.0"
 description = ""
-authors = ["Szyller, Sebastian <sebastian.szyller@intel.com>"]
+authors = ["Intel Corporation"]
 readme = "README.md"
 package-mode = false
 
