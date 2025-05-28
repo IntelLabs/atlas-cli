@@ -220,7 +220,7 @@ Key Requirements:
 
 - RSA keys: minimum 2048 bits (4096 bits recommended)
 - EC keys: use approved curves (P-256, P-384, or P-521)
-- Store private keys securely with appropriate file permissions
+- Follow [key management best practices](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57pt1r5.pdf), and use a well-known key management service (KMS) when possible.
 - Never commit private keys to version control
 - Rotate keys regularly according to your security policy
 
