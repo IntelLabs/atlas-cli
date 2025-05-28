@@ -32,6 +32,10 @@ atlas-cli dataset create \
 
 ### Creating a Signed Manifest
 
+To sign manifests, you'll need a private key.
+
+**Important**: Cryptographic key generation and management are the responsibility of the end user. The security of your C2PA manifests depends entirely on the strength and proper management of your signing/verification keys.
+
 ```bash
 # First, generate keys if you don't have them
 make generate-keys

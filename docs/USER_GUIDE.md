@@ -189,6 +189,69 @@ atlas-cli model create \
     ...
 ```
 
+## Security Configuration
+
+### Key Generation and Management
+
+**Important**: Cryptographic key generation and management are the responsibility of the end user. The security of your C2PA manifests depends entirely on the strength and proper management of your keys.
+
+Generate signing keys using the provided Makefile:
+
+```bash
+make generate-keys
+```
+
+This creates:
+
+private.pem - Private key for signing
+public.pem - Public key for verification
+
+For custom key generation with specific requirements:
+
+```bash
+# Generate a strong 4096-bit RSA private key (recommended)
+openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:4096
+
+# Extract the public key
+openssl rsa -pubout -in private_key.pem -out public_key.pem
+```
+
+Key Requirements:
+
+- RSA keys: minimum 2048 bits (4096 bits recommended)
+- EC keys: use approved curves (P-256, P-384, or P-521)
+- Follow [key management best practices](https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57pt1r5.pdf), and use a well-known key management service (KMS) when possible.
+- Never commit private keys to version control
+- Rotate keys regularly according to your security policy
+
+### Hash Algorithms
+
+The Atlas CLI supports multiple hash algorithms for signing manifests:
+```bash
+
+Uses SHA-384 by default (recommended)
+
+atlas-cli model create --key=private.pem ...
+
+# Use SHA-512 for maximum security
+atlas-cli model create --key=private.pem --hash-algo=sha512 ...
+
+```
+Available algorithms:
+
+- sha384 - Default, recommended for security/performance balance
+- sha256 - For backward compatibility with existing systems
+- sha512 - Maximum security for sensitive applications
+
+The --hash-alg flag is supported by all creation commands:
+
+```
+model create
+dataset create
+software create
+evaluation create
+```
+
 ## Supported Formats
 
 ### Models

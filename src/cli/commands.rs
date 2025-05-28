@@ -1,6 +1,23 @@
 use clap::Subcommand;
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, clap::ValueEnum)]
+pub enum HashAlgorithmChoice {
+    Sha256,
+    Sha384,
+    Sha512,
+}
+
+impl HashAlgorithmChoice {
+    pub fn to_cose_algorithm(&self) -> atlas_c2pa_lib::cose::HashAlgorithm {
+        match self {
+            HashAlgorithmChoice::Sha256 => atlas_c2pa_lib::cose::HashAlgorithm::Sha256,
+            HashAlgorithmChoice::Sha384 => atlas_c2pa_lib::cose::HashAlgorithm::Sha384,
+            HashAlgorithmChoice::Sha512 => atlas_c2pa_lib::cose::HashAlgorithm::Sha512,
+        }
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum DatasetCommands {
     /// Create a new dataset manifest
@@ -35,6 +52,10 @@ pub enum DatasetCommands {
         /// Path to private key file for signing (PEM format)
         #[arg(long = "key")]
         key: Option<PathBuf>,
+
+        /// Hash algorithm to use for signing (default: sha384)
+        #[arg(long = "hash-alg", value_enum, default_value = "sha384")]
+        hash_alg: HashAlgorithmChoice,
 
         /// Only print manifest without storing
         #[arg(long = "print")]
@@ -114,6 +135,10 @@ pub enum ModelCommands {
         /// Path to private key file for signing (PEM format)
         #[arg(long = "key")]
         key: Option<PathBuf>,
+
+        /// Hash algorithm to use for signing (default: sha384)
+        #[arg(long = "hash-alg", value_enum, default_value = "sha384")]
+        hash_alg: HashAlgorithmChoice,
 
         /// Only print manifest without storing
         #[arg(long = "print")]
@@ -313,6 +338,10 @@ pub enum EvaluationCommands {
         #[arg(long = "key")]
         key: Option<PathBuf>,
 
+        /// Hash algorithm to use for signing (default: sha384)
+        #[arg(long = "hash-alg", value_enum, default_value = "sha384")]
+        hash_alg: HashAlgorithmChoice,
+
         /// Only print manifest without storing
         #[arg(long = "print")]
         print: bool,
@@ -415,6 +444,10 @@ pub enum SoftwareCommands {
         /// Path to private key file for signing (PEM format)
         #[arg(long = "key")]
         key: Option<PathBuf>,
+
+        /// Hash algorithm to use for signing (default: sha384)
+        #[arg(long = "hash-alg", value_enum, default_value = "sha384")]
+        hash_alg: HashAlgorithmChoice,
 
         /// Only print manifest without storing
         #[arg(long = "print")]
