@@ -86,7 +86,7 @@ fn test_filesystem_storage() -> Result<()> {
 
     // Create a test manifest
     let manifest_id = format!("test_manifest_{}", Uuid::new_v4());
-    println!("Created manifest ID: {}", manifest_id);
+    println!("Created manifest ID: {manifest_id}");
 
     let manifest = Manifest {
         claim_generator: "test".to_string(),
@@ -102,7 +102,7 @@ fn test_filesystem_storage() -> Result<()> {
 
     // Store the manifest
     let stored_id = fs_storage.store_manifest(&manifest)?;
-    println!("Stored manifest with ID: {}", stored_id);
+    println!("Stored manifest with ID: {stored_id}");
     assert_eq!(stored_id, manifest_id);
 
     // Retrieve the manifest
@@ -119,7 +119,7 @@ fn test_filesystem_storage() -> Result<()> {
 
     // Delete the manifest
     fs_storage.delete_manifest(&manifest_id)?;
-    println!("Deleted manifest with ID: {}", manifest_id);
+    println!("Deleted manifest with ID: {manifest_id}");
 
     // Verify it's no longer retrievable
     assert!(fs_storage.retrieve_manifest(&manifest_id).is_err());
@@ -139,7 +139,7 @@ fn test_filesystem_storage_extended() -> Result<()> {
 
     // Create a test manifest
     let manifest_id = format!("test_manifest_{}", Uuid::new_v4());
-    println!("Created manifest ID: {}", manifest_id);
+    println!("Created manifest ID: {manifest_id}");
 
     let manifest = Manifest {
         claim_generator: "test".to_string(),
@@ -170,7 +170,7 @@ fn test_filesystem_storage_extended() -> Result<()> {
     // Test manifest size functionality
     let size = fs_storage.get_manifest_size(&manifest_id)?;
     assert!(size > 0, "Manifest file size should be greater than 0");
-    println!("Manifest size: {} bytes", size);
+    println!("Manifest size: {size} bytes");
 
     // Test backup functionality
     let backup_dir = tempdir()?;
@@ -182,14 +182,14 @@ fn test_filesystem_storage_extended() -> Result<()> {
         .filter_map(|entry| entry.ok())
         .count();
     assert!(backup_count > 0, "Backup directory should contain files");
-    println!("Backup contains {} files", backup_count);
+    println!("Backup contains {backup_count} files");
 
     // Test export functionality
     let export_dir = tempdir()?;
     println!("Export directory: {:?}", export_dir.path());
     let export_count = fs_storage.export_all(export_dir.path().to_path_buf())?;
     assert_eq!(export_count, 1, "Should export 1 manifest");
-    println!("Exported {} manifests", export_count);
+    println!("Exported {export_count} manifests");
 
     // Test total storage size
     let total_size = fs_storage.get_total_storage_size()?;
@@ -197,7 +197,7 @@ fn test_filesystem_storage_extended() -> Result<()> {
         total_size > 0,
         "Total storage size should be greater than 0"
     );
-    println!("Total storage size: {} bytes", total_size);
+    println!("Total storage size: {total_size} bytes");
 
     Ok(())
 }
@@ -215,8 +215,8 @@ fn test_filesystem_storage_linking() -> Result<()> {
     let dataset_id = format!("dataset_{}", Uuid::new_v4());
     let model_id = format!("model_{}", Uuid::new_v4());
 
-    println!("Created dataset ID: {}", dataset_id);
-    println!("Created model ID: {}", model_id);
+    println!("Created dataset ID: {dataset_id}");
+    println!("Created model ID: {model_id}");
 
     // Create dataset manifest
     let dataset_manifest = Manifest {
@@ -328,7 +328,7 @@ fn test_cli_handler_storage_selection() -> Result<()> {
 
         // The connection errors are expected, we're just making sure we don't get type errors
         match result {
-            Ok(_) => println!("✓ Command succeeded with storage_type: {}", storage_type),
+            Ok(_) => println!("✓ Command succeeded with storage_type: {storage_type}"),
             Err(e) => {
                 // Check if it's an expected error
                 let err_string = e.to_string();
@@ -346,14 +346,12 @@ fn test_cli_handler_storage_selection() -> Result<()> {
 
                 if expected_errors.iter().any(|msg| err_string.contains(msg)) {
                     println!(
-                        "✓ Command failed with expected connection error for storage_type '{}': {}",
-                        storage_type, err_string
+                        "✓ Command failed with expected connection error for storage_type '{storage_type}': {err_string}"
                     );
                 } else {
                     // Unexpected error - likely due to incorrect storage backend selection
                     panic!(
-                        "Command failed with unexpected error for storage_type '{}': {}",
-                        storage_type, err_string
+                        "Command failed with unexpected error for storage_type '{storage_type}': {err_string}"
                     );
                 }
             }

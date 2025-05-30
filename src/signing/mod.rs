@@ -179,7 +179,7 @@ mod tests {
         if let Err(e) = result {
             match e {
                 crate::error::Error::Io(_) => {} // Expected error type
-                _ => panic!("Unexpected error type: {:?}", e),
+                _ => panic!("Unexpected error type: {e:?}"),
             }
         }
     }

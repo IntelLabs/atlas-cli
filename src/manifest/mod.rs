@@ -709,7 +709,7 @@ pub fn export_provenance(
             #[cfg(feature = "yaml")]
             {
                 serde_yaml::to_string(&graph).map_err(|e| {
-                    Error::Serialization(format!("Failed to serialize to YAML: {}", e))
+                    Error::Serialization(format!("Failed to serialize to YAML: {e}"))
                 })?
             }
 
