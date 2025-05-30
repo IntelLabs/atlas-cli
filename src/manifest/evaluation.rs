@@ -21,8 +21,7 @@ pub fn create_manifest(
             metrics_map.insert(parts[0].to_string(), parts[1].to_string());
         } else {
             return Err(Error::Validation(format!(
-                "Invalid metric format: {}. Expected format: key=value",
-                metric
+                "Invalid metric format: {metric}. Expected format: key=value"
             )));
         }
     }
@@ -37,12 +36,10 @@ pub fn create_manifest(
     // Update the description to include evaluation info
     let enhanced_description = match &config.description {
         Some(desc) => Some(format!(
-            "{} (Model: {}, Dataset: {})",
-            desc, model_id, dataset_id
+            "{desc} (Model: {model_id}, Dataset: {dataset_id})"
         )),
         None => Some(format!(
-            "Evaluation of Model: {} on Dataset: {}",
-            model_id, dataset_id
+            "Evaluation of Model: {model_id} on Dataset: {dataset_id}"
         )),
     };
     config.description = enhanced_description;

@@ -200,8 +200,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
                 manifest::linking::link_dataset_to_model(&model_id, &dataset_id, storage.as_ref())?;
 
             println!(
-                "Successfully linked dataset {} to model {}",
-                dataset_id, model_id
+                "Successfully linked dataset {dataset_id} to model {model_id}"
             );
             println!("Updated manifest ID: {}", updated_manifest.instance_id);
 
@@ -404,13 +403,11 @@ pub fn handle_cc_attestation_command(cmd: CCAttestationCommands) -> Result<()> {
             let result = cc_attestation::verify_launch_endorsement(&host_platform).unwrap();
             if result {
                 println!(
-                    "Passed: launch endorsement verification for {} host platform",
-                    host_platform
+                    "Passed: launch endorsement verification for {host_platform} host platform"
                 );
             } else {
                 println!(
-                    "Failed: launch endorsement verification for {} host platform",
-                    host_platform
+                    "Failed: launch endorsement verification for {host_platform} host platform"
                 );
             }
             Ok(())

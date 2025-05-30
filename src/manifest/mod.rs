@@ -61,8 +61,7 @@ pub fn link_manifests(
         Ok(manifest) => manifest,
         Err(e) => {
             return Err(Error::Manifest(format!(
-                "Failed to retrieve source manifest {}: {}",
-                source_id, e
+                "Failed to retrieve source manifest {source_id}: {e}"
             )))
         }
     };
@@ -71,8 +70,7 @@ pub fn link_manifests(
         Ok(manifest) => manifest,
         Err(e) => {
             return Err(Error::Manifest(format!(
-                "Failed to retrieve target manifest {}: {}",
-                target_id, e
+                "Failed to retrieve target manifest {target_id}: {e}"
             )))
         }
     };
@@ -84,7 +82,7 @@ pub fn link_manifests(
         .find(|cr| cr.manifest_url == target_id);
 
     if let Some(existing_ref) = duplicate_ref {
-        println!("Warning: A cross-reference to {} already exists", target_id);
+        println!("Warning: A cross-reference to {target_id} already exists");
         // Check if hash matches (if it doesn't, this could indicate a conflict)
         let target_json = serde_json::to_string(&target_manifest)
             .map_err(|e| Error::Serialization(e.to_string()))?;
@@ -124,10 +122,9 @@ pub fn link_manifests(
     let updated_id = storage.store_manifest(&source_manifest)?;
 
     println!(
-        "Successfully linked manifest {} to {}",
-        source_id, target_id
+        "Successfully linked manifest {source_id} to {target_id}"
     );
-    println!("Updated manifest ID: {}", updated_id);
+    println!("Updated manifest ID: {updated_id}");
 
     Ok(())
 }
@@ -160,7 +157,7 @@ fn create_versioned_link(
     for cr in &source_manifest.cross_references {
         if cr
             .manifest_url
-            .starts_with(&format!("urn:c2pa:{}:", uuid_part))
+            .starts_with(&format!("urn:c2pa:{uuid_part}:"))
         {
             let parts: Vec<&str> = cr.manifest_url.split(':').collect();
             if parts.len() >= 5 {
@@ -200,10 +197,9 @@ fn create_versioned_link(
     let updated_id = storage.store_manifest(&source_manifest)?;
 
     println!(
-        "Successfully linked manifest {} to {} (versioned as {})",
-        source_id, target_id, versioned_id
+        "Successfully linked manifest {source_id} to {target_id} (versioned as {versioned_id})"
     );
-    println!("Updated manifest ID: {}", updated_id);
+    println!("Updated manifest ID: {updated_id}");
 
     Ok(())
 }
@@ -225,7 +221,7 @@ pub fn show_manifest(id: &str, storage: &(impl StorageBackend + ?Sized)) -> Resu
     println!("Claim Generator: {}", manifest.claim.claim_generator_info);
 
     if let Some(signature) = &manifest.claim.signature {
-        println!("\nSignature: {}", signature);
+        println!("\nSignature: {signature}");
     } else {
         println!("\nSignature: None (unsigned)");
     }
@@ -251,16 +247,16 @@ pub fn show_manifest(id: &str, storage: &(impl StorageBackend + ?Sized)) -> Resu
                 for action in &action.actions {
                     println!("    - Action: {}", action.action);
                     if let Some(agent) = &action.software_agent {
-                        println!("      Software Agent: {}", agent);
+                        println!("      Software Agent: {agent}");
                     }
                     if let Some(source_type) = &action.digital_source_type {
-                        println!("      Digital Source Type: {}", source_type);
+                        println!("      Digital Source Type: {source_type}");
                     }
                     if let Some(params) = &action.parameters {
                         println!(
                             "      Parameters: {}",
                             serde_json::to_string_pretty(params)
-                                .unwrap_or_else(|_| format!("{:?}", params))
+                                .unwrap_or_else(|_| format!("{params:?}"))
                         );
                     }
                 }
@@ -285,15 +281,15 @@ pub fn show_manifest(id: &str, storage: &(impl StorageBackend + ?Sized)) -> Resu
 
         println!("    Data Types:");
         for data_type in &ingredient.data.data_types {
-            println!("      - {:?}", data_type);
+            println!("      - {data_type:?}");
         }
 
         if let Some(linked) = &ingredient.linked_ingredient {
-            println!("  Linked Ingredient: {:?}", linked);
+            println!("  Linked Ingredient: {linked:?}");
         }
 
         if let Some(key) = &ingredient.public_key {
-            println!("  Public Key: {:?}", key);
+            println!("  Public Key: {key:?}");
         }
     }
 
@@ -329,8 +325,7 @@ pub mod linking {
         // Verify the dataset manifest type
         if !is_dataset_manifest(&dataset_manifest) {
             return Err(Error::Validation(format!(
-                "Manifest {} is not a dataset manifest",
-                dataset_manifest_id
+                "Manifest {dataset_manifest_id} is not a dataset manifest"
             )));
         }
 
@@ -385,7 +380,7 @@ pub fn validate_linked_manifests(
 ) -> Result<()> {
     let manifest = storage.retrieve_manifest(manifest_id)?;
 
-    println!("Validating cross-references for manifest: {}", manifest_id);
+    println!("Validating cross-references for manifest: {manifest_id}");
 
     if manifest.cross_references.is_empty() {
         println!("No cross-references found in manifest");
@@ -405,9 +400,9 @@ pub fn validate_linked_manifests(
 
         // Validate the hash format first
         if let Err(hash_err) = validate_hash_format(&cross_ref.manifest_hash) {
-            let error = format!("Invalid hash format: {}", hash_err);
+            let error = format!("Invalid hash format: {hash_err}");
             validation_errors.push(error.clone());
-            println!("  ❌ {}", error);
+            println!("  ❌ {error}");
             continue;
         }
 
@@ -418,9 +413,9 @@ pub fn validate_linked_manifests(
                 let ref_json = match serde_json::to_string(&referenced_manifest) {
                     Ok(json) => json,
                     Err(e) => {
-                        let error = format!("Failed to serialize referenced manifest: {}", e);
+                        let error = format!("Failed to serialize referenced manifest: {e}");
                         validation_errors.push(error.clone());
-                        println!("  ❌ {}", error);
+                        println!("  ❌ {error}");
                         continue;
                     }
                 };
@@ -436,23 +431,23 @@ pub fn validate_linked_manifests(
                         cross_ref.manifest_url, cross_ref.manifest_hash, calculated_hash
                     );
                     validation_errors.push(error.clone());
-                    println!("  ❌ {}", error);
+                    println!("  ❌ {error}");
                 }
 
                 // Check manifest structure
                 match atlas_c2pa_lib::manifest::validate_manifest(&referenced_manifest) {
                     Ok(_) => println!("  ✓ Manifest structure validation successful"),
                     Err(e) => {
-                        let error = format!("Manifest structure validation failed: {}", e);
+                        let error = format!("Manifest structure validation failed: {e}");
                         validation_errors.push(error.clone());
-                        println!("  ❌ {}", error);
+                        println!("  ❌ {error}");
                     }
                 }
             }
             Err(e) => {
-                let error = format!("Failed to retrieve referenced manifest: {}", e);
+                let error = format!("Failed to retrieve referenced manifest: {e}");
                 validation_errors.push(error.clone());
-                println!("  ❌ {}", error);
+                println!("  ❌ {error}");
             }
         }
     }
@@ -517,18 +512,18 @@ pub fn verify_manifest_link(
             let calculated_hash = hex::encode(sha2::Sha256::digest(target_json.as_bytes()));
 
             if calculated_hash == reference.manifest_hash {
-                println!("Manifest link verified: {} -> {}", source_id, target_id);
+                println!("Manifest link verified: {source_id} -> {target_id}");
                 println!("Hash verification successful");
                 Ok(true)
             } else {
-                println!("Hash mismatch for linked manifest: {}", target_id);
+                println!("Hash mismatch for linked manifest: {target_id}");
                 println!("  Stored hash:     {}", reference.manifest_hash);
-                println!("  Calculated hash: {}", calculated_hash);
+                println!("  Calculated hash: {calculated_hash}");
                 Ok(false)
             }
         }
         None => {
-            println!("No link found from {} to {}", source_id, target_id);
+            println!("No link found from {source_id} to {target_id}");
             Ok(false)
         }
     }
@@ -568,8 +563,7 @@ pub fn validate_manifest_id(id: &str) -> Result<()> {
 
             if vr_parts.len() != 2 {
                 return Err(Error::Validation(format!(
-                    "Invalid version_reason format: expected 'version_reason', got '{}'",
-                    version_reason
+                    "Invalid version_reason format: expected 'version_reason', got '{version_reason}'"
                 )));
             }
 
@@ -598,8 +592,7 @@ pub fn validate_manifest_id(id: &str) -> Result<()> {
         {
             // Basic validation for other ID formats
             return Err(Error::Validation(format!(
-                "Invalid manifest ID format: '{}'. Expected URN, UUID, or alphanumeric ID",
-                id
+                "Invalid manifest ID format: '{id}'. Expected URN, UUID, or alphanumeric ID"
             )));
         }
     }
@@ -613,11 +606,11 @@ pub fn ensure_c2pa_urn(id: &str) -> String {
         id.to_string() // Already in correct format
     } else if Uuid::parse_str(id).is_ok() {
         // It's a valid UUID, convert to URN
-        format!("urn:c2pa:{}", id)
+        format!("urn:c2pa:{id}")
     } else {
         // Not a UUID, generate a new one
         let uuid = Uuid::new_v4(); // Using new_v4() instead of new_v5()
-        format!("urn:c2pa:{}", uuid)
+        format!("urn:c2pa:{uuid}")
     }
 }
 
@@ -627,13 +620,12 @@ pub fn extract_uuid_from_urn(urn: &str) -> Result<Uuid> {
 
     if parts.len() < 3 || parts[0] != "urn" || parts[1] != "c2pa" {
         return Err(Error::Validation(format!(
-            "Invalid C2PA URN format: '{}'",
-            urn
+            "Invalid C2PA URN format: '{urn}'"
         )));
     }
 
     Uuid::parse_str(parts[2])
-        .map_err(|e| Error::Validation(format!("Invalid UUID in C2PA URN '{}': {}", urn, e)))
+        .map_err(|e| Error::Validation(format!("Invalid UUID in C2PA URN '{urn}': {e}")))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -691,8 +683,7 @@ pub fn export_provenance(
         Ok(manifest) => manifest,
         Err(e) => {
             return Err(Error::Manifest(format!(
-                "Failed to retrieve root manifest {}: {}",
-                id, e
+                "Failed to retrieve root manifest {id}: {e}"
             )))
         }
     };
@@ -713,7 +704,7 @@ pub fn export_provenance(
     // Serialize the graph based on the requested format
     let serialized = match format.to_lowercase().as_str() {
         "json" => serde_json::to_string_pretty(&graph)
-            .map_err(|e| Error::Serialization(format!("Failed to serialize to JSON: {}", e)))?,
+            .map_err(|e| Error::Serialization(format!("Failed to serialize to JSON: {e}")))?,
         "yaml" => {
             #[cfg(feature = "yaml")]
             {
@@ -729,8 +720,7 @@ pub fn export_provenance(
         }
         _ => {
             return Err(Error::Validation(format!(
-                "Invalid output format '{}'. Valid options are: json, yaml",
-                format
+                "Invalid output format '{format}'. Valid options are: json, yaml"
             )))
         }
     };
@@ -739,10 +729,10 @@ pub fn export_provenance(
     if let Some(path) = output_path {
         let mut file = File::create(path).map_err(Error::Io)?;
         file.write_all(serialized.as_bytes()).map_err(Error::Io)?;
-        println!("Provenance graph exported to: {}", path);
+        println!("Provenance graph exported to: {path}");
     } else {
         // Print to stdout
-        println!("{}", serialized);
+        println!("{serialized}");
     }
 
     Ok(())
@@ -769,8 +759,7 @@ fn build_provenance_graph(
         Ok(manifest) => manifest,
         Err(e) => {
             return Err(Error::Manifest(format!(
-                "Failed to retrieve manifest {}: {}",
-                id, e
+                "Failed to retrieve manifest {id}: {e}"
             )))
         }
     };

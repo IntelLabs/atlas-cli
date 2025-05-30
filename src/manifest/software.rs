@@ -14,12 +14,11 @@ pub fn create_manifest(
     // Combine software_type and version into description or metadata
     let enhanced_description = match (&config.description, &version) {
         (Some(desc), Some(ver)) => Some(format!(
-            "{} (Type: {}, Version: {})",
-            desc, software_type, ver
+            "{desc} (Type: {software_type}, Version: {ver})"
         )),
-        (Some(desc), None) => Some(format!("{} (Type: {})", desc, software_type)),
-        (None, Some(ver)) => Some(format!("Type: {}, Version: {}", software_type, ver)),
-        (None, None) => Some(format!("Type: {}", software_type)),
+        (Some(desc), None) => Some(format!("{desc} (Type: {software_type})")),
+        (None, Some(ver)) => Some(format!("Type: {software_type}, Version: {ver}")),
+        (None, None) => Some(format!("Type: {software_type}")),
     };
 
     // Update the description in the config

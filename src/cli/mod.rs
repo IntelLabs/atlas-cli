@@ -17,29 +17,29 @@ pub const CLI_NAME: &str = "c2pa-cli";
 
 pub fn format_error(error: &Error) -> String {
     match error {
-        Error::Io(err) => format!("IO error: {}", err),
-        Error::Storage(msg) => format!("Storage error: {}", msg),
-        Error::Validation(msg) => format!("Validation error: {}", msg),
-        Error::Manifest(msg) => format!("Manifest error: {}", msg),
-        Error::Signing(msg) => format!("Signing error: {}", msg),
-        Error::Serialization(msg) => format!("Serialization error: {}", msg),
-        Error::InitializationError(msg) => format!("Initialization error: {}", msg),
-        Error::HexDecode(err) => format!("Hex decode error: {}", err),
-        Error::CCAttestationError(msg) => format!("CC attestation error: {}", msg),
-        Error::Json(err) => format!("JSON error: {}", err),
+        Error::Io(err) => format!("IO error: {err}"),
+        Error::Storage(msg) => format!("Storage error: {msg}"),
+        Error::Validation(msg) => format!("Validation error: {msg}"),
+        Error::Manifest(msg) => format!("Manifest error: {msg}"),
+        Error::Signing(msg) => format!("Signing error: {msg}"),
+        Error::Serialization(msg) => format!("Serialization error: {msg}"),
+        Error::InitializationError(msg) => format!("Initialization error: {msg}"),
+        Error::HexDecode(err) => format!("Hex decode error: {err}"),
+        Error::CCAttestationError(msg) => format!("CC attestation error: {msg}"),
+        Error::Json(err) => format!("JSON error: {err}"),
     }
 }
 
 /// Helper function to print validation warnings to the user
 pub fn print_validation_warning(message: &str) {
-    eprintln!("Warning: {}", message);
+    eprintln!("Warning: {message}");
 }
 
 /// Helper function to confirm actions with the user
 pub fn confirm_action(prompt: &str) -> bool {
     use std::io::{self, Write};
 
-    print!("{} [y/N]: ", prompt);
+    print!("{prompt} [y/N]: ");
     io::stdout().flush().unwrap();
 
     let mut input = String::new();

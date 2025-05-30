@@ -19,7 +19,7 @@ impl DatabaseStorage {
         match value {
             Value::Object(map) => {
                 for (key, value) in map {
-                    println!("{}{}: ", spaces, key);
+                    println!("{spaces}{key}: ");
                     Self::print_manifest_structure(value, indent + 2);
                 }
             }
@@ -28,7 +28,7 @@ impl DatabaseStorage {
                     Self::print_manifest_structure(value, indent + 2);
                 }
             }
-            _ => println!("{}{}", spaces, value),
+            _ => println!("{spaces}{value}"),
         }
     }
 }
@@ -57,7 +57,7 @@ impl DatabaseStorage {
         let client = Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .map_err(|e| Error::Storage(format!("Failed to create HTTP client: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to create HTTP client: {e}")))?;
 
         Ok(Self {
             base_url: url.trim_end_matches('/').to_string(),
@@ -83,7 +83,7 @@ impl StorageBackend for DatabaseStorage {
                 self.base_url, &manifest.instance_id
             ))
             .send()
-            .map_err(|e| Error::Storage(format!("Failed to check existing manifest: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to check existing manifest: {e}")))?;
 
         if existing.status().is_success() {
             // Manifest exists - create a new version
@@ -104,17 +104,17 @@ impl StorageBackend for DatabaseStorage {
                 .client
                 .get(format!("{}/manifests", self.base_url))
                 .send()
-                .map_err(|e| Error::Storage(format!("Failed to list manifests: {}", e)))?;
+                .map_err(|e| Error::Storage(format!("Failed to list manifests: {e}")))?;
 
             let all_manifests: Vec<serde_json::Value> = all_manifests_response
                 .json()
-                .map_err(|e| Error::Storage(format!("Failed to parse manifests list: {}", e)))?;
+                .map_err(|e| Error::Storage(format!("Failed to parse manifests list: {e}")))?;
 
             // Find highest version for this ID
             let mut max_version = 0;
             for manifest_entry in all_manifests {
                 if let Some(id) = manifest_entry.get("manifest_id").and_then(|v| v.as_str()) {
-                    if id.starts_with(&format!("urn:c2pa:{}:", uuid_part)) {
+                    if id.starts_with(&format!("urn:c2pa:{uuid_part}:")) {
                         let id_parts: Vec<&str> = id.split(':').collect();
                         if id_parts.len() >= 5 {
                             if let Some(version_reason) = id_parts.get(4) {
@@ -159,7 +159,7 @@ impl StorageBackend for DatabaseStorage {
                 .post(self.manifest_url(Some(&versioned_id)))
                 .json(&stored_manifest)
                 .send()
-                .map_err(|e| Error::Storage(format!("Failed to store manifest: {}", e)))?;
+                .map_err(|e| Error::Storage(format!("Failed to store manifest: {e}")))?;
 
             Ok(versioned_id)
         } else {
@@ -179,7 +179,7 @@ impl StorageBackend for DatabaseStorage {
                 .post(self.manifest_url(Some(&manifest.instance_id)))
                 .json(&stored_manifest)
                 .send()
-                .map_err(|e| Error::Storage(format!("Failed to store manifest: {}", e)))?;
+                .map_err(|e| Error::Storage(format!("Failed to store manifest: {e}")))?;
 
             Ok(manifest.instance_id.clone())
         }
@@ -199,13 +199,13 @@ impl StorageBackend for DatabaseStorage {
             .client
             .get(format!("{}/manifests/{}", self.base_url, id))
             .send()
-            .map_err(|e| Error::Storage(format!("Failed to retrieve manifest: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to retrieve manifest: {e}")))?;
 
         if response.status().is_success() {
             // Found the manifest, parse it
             let stored_manifest: StoredManifest = response
                 .json()
-                .map_err(|e| Error::Storage(format!("Failed to parse manifest: {}", e)))?;
+                .map_err(|e| Error::Storage(format!("Failed to parse manifest: {e}")))?;
 
             // Extract the inner manifest
             let manifest_value = stored_manifest
@@ -214,7 +214,7 @@ impl StorageBackend for DatabaseStorage {
                 .ok_or_else(|| Error::Storage("Invalid manifest structure".to_string()))?;
 
             return serde_json::from_value(manifest_value.clone())
-                .map_err(|e| Error::Storage(format!("Failed to parse manifest data: {}", e)));
+                .map_err(|e| Error::Storage(format!("Failed to parse manifest data: {e}")));
         }
 
         // If direct lookup failed, try to find all versions
@@ -222,7 +222,7 @@ impl StorageBackend for DatabaseStorage {
             .client
             .get(format!("{}/manifests", self.base_url))
             .send()
-            .map_err(|e| Error::Storage(format!("Failed to list manifests: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to list manifests: {e}")))?;
 
         if !list_response.status().is_success() {
             return Err(Error::Storage(format!(
@@ -234,16 +234,16 @@ impl StorageBackend for DatabaseStorage {
         // Parse the manifest list
         let manifests: Vec<StoredManifest> = list_response
             .json()
-            .map_err(|e| Error::Storage(format!("Failed to parse manifests list: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to parse manifests list: {e}")))?;
 
         // Find all versions of this manifest
         let mut versions: Vec<StoredManifest> = manifests
             .into_iter()
-            .filter(|m| m.manifest_id.contains(&format!("urn:c2pa:{}:", uuid_part)))
+            .filter(|m| m.manifest_id.contains(&format!("urn:c2pa:{uuid_part}:")))
             .collect();
 
         if versions.is_empty() {
-            return Err(Error::Storage(format!("Manifest not found for ID: {}", id)));
+            return Err(Error::Storage(format!("Manifest not found for ID: {id}")));
         }
 
         // Sort by created_at timestamp (newest first)
@@ -259,7 +259,7 @@ impl StorageBackend for DatabaseStorage {
             .ok_or_else(|| Error::Storage("Invalid manifest structure".to_string()))?;
 
         serde_json::from_value(manifest_value.clone())
-            .map_err(|e| Error::Storage(format!("Failed to parse manifest data: {}", e)))
+            .map_err(|e| Error::Storage(format!("Failed to parse manifest data: {e}")))
     }
 
     fn list_manifests(&self) -> Result<Vec<ManifestMetadata>> {
@@ -267,7 +267,7 @@ impl StorageBackend for DatabaseStorage {
             .client
             .get(self.manifest_url(None))
             .send()
-            .map_err(|e| Error::Storage(format!("Failed to list manifests: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to list manifests: {e}")))?;
 
         if !response.status().is_success() {
             return Err(Error::Storage(format!(
@@ -278,7 +278,7 @@ impl StorageBackend for DatabaseStorage {
 
         let stored_manifests: Vec<StoredManifest> = response
             .json()
-            .map_err(|e| Error::Storage(format!("Failed to parse manifests list: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to parse manifests list: {e}")))?;
 
         Ok(stored_manifests
             .into_iter()
@@ -310,7 +310,7 @@ impl StorageBackend for DatabaseStorage {
             .client
             .delete(self.manifest_url(Some(id)))
             .send()
-            .map_err(|e| Error::Storage(format!("Failed to delete manifest: {}", e)))?;
+            .map_err(|e| Error::Storage(format!("Failed to delete manifest: {e}")))?;
 
         if !response.status().is_success() {
             return Err(Error::Storage(format!(
