@@ -1,5 +1,7 @@
 # Atlas CLI: Machine Learning (ML) Lifecycle & Transparency Manager
 
+⚠️ **Disclaimer**: This project is currently in active development. The code is **not stable** and **not intended for use in production environments**. Interfaces, features, and behaviors are subject to change without notice.
+
 A command-line interface tool for creating, managing, and verifying Content Provenance and Authenticity (C2PA) manifests for machine learning models, datasets, and related artifacts.
 
 ## Key Features
