@@ -576,9 +576,7 @@ fn test_evaluation_with_both_conditions() -> Result<()> {
 
     // Verify the evaluation manifest
     println!("\n=== PERFORMING VERIFICATION ===");
-    println!(
-        "Attempting to verify evaluation manifest with ID: {eval_id}"
-    );
+    println!("Attempting to verify evaluation manifest with ID: {eval_id}");
 
     match crate::manifest::evaluation::verify_evaluation_manifest(&eval_id, &storage) {
         Ok(_) => {

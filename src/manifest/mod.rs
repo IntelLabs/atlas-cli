@@ -121,9 +121,7 @@ pub fn link_manifests(
     // Update the source manifest in storage
     let updated_id = storage.store_manifest(&source_manifest)?;
 
-    println!(
-        "Successfully linked manifest {source_id} to {target_id}"
-    );
+    println!("Successfully linked manifest {source_id} to {target_id}");
     println!("Updated manifest ID: {updated_id}");
 
     Ok(())

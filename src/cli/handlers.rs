@@ -199,9 +199,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
             let updated_manifest =
                 manifest::linking::link_dataset_to_model(&model_id, &dataset_id, storage.as_ref())?;
 
-            println!(
-                "Successfully linked dataset {dataset_id} to model {model_id}"
-            );
+            println!("Successfully linked dataset {dataset_id} to model {model_id}");
             println!("Updated manifest ID: {}", updated_manifest.instance_id);
 
             Ok(())

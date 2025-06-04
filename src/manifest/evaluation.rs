@@ -35,9 +35,7 @@ pub fn create_manifest(
 
     // Update the description to include evaluation info
     let enhanced_description = match &config.description {
-        Some(desc) => Some(format!(
-            "{desc} (Model: {model_id}, Dataset: {dataset_id})"
-        )),
+        Some(desc) => Some(format!("{desc} (Model: {model_id}, Dataset: {dataset_id})")),
         None => Some(format!(
             "Evaluation of Model: {model_id} on Dataset: {dataset_id}"
         )),
