@@ -252,10 +252,10 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
                         // Add the cross-reference to the manifest
                         manifest.cross_references.push(cross_ref);
 
-                        println!("Added link to manifest: {}", linked_id);
+                        println!("Added link to manifest: {linked_id}");
                     }
                     Err(e) => {
-                        println!("Warning: Could not link to manifest {}: {}", linked_id, e);
+                        println!("Warning: Could not link to manifest {linked_id}: {e}");
                     }
                 }
             }
@@ -270,7 +270,7 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
             "json" => {
                 let manifest_json =
                     to_string_pretty(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
-                println!("{}", manifest_json);
+                println!("{manifest_json}");
             }
             "cbor" => {
                 let manifest_cbor = serde_cbor::to_vec(&manifest)
@@ -290,7 +290,7 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
     if let Some(storage) = &config.storage {
         if !config.print {
             let id = storage.store_manifest(&manifest)?;
-            println!("Manifest stored successfully with ID: {}", id);
+            println!("Manifest stored successfully with ID: {id}");
         }
     }
 
@@ -345,7 +345,7 @@ pub fn verify_manifest(id: &str, storage: &dyn StorageBackend) -> Result<()> {
     atlas_c2pa_lib::manifest::validate_manifest(&manifest)
         .map_err(|e| crate::error::Error::Validation(e.to_string()))?;
 
-    println!("Verifying manifest with ID: {}", id);
+    println!("Verifying manifest with ID: {id}");
 
     // Step 2: Verify each ingredient's hash
     for ingredient in &manifest.ingredients {
@@ -701,8 +701,7 @@ fn get_cc_attestation_assertion() -> Result<CustomAssertion> {
         Ok(r) => r,
         Err(e) => {
             return Err(Error::CCAttestationError(format!(
-                "Failed to get attestation: {}",
-                e
+                "Failed to get attestation: {e}"
             )))
         }
     };
@@ -712,8 +711,7 @@ fn get_cc_attestation_assertion() -> Result<CustomAssertion> {
         Ok(p) => p,
         Err(e) => {
             return Err(Error::CCAttestationError(format!(
-                "Error detecting attestation platform: {}",
-                e
+                "Error detecting attestation platform: {e}"
             )))
         }
     };

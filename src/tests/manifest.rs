@@ -463,7 +463,7 @@ fn test_evaluation_with_both_conditions() -> Result<()> {
                 .iter()
                 .any(|t| matches!(t, AssetType::Dataset))
         });
-        println!("Has AssetType::Dataset: {}", has_dataset_type);
+        println!("Has AssetType::Dataset: {has_dataset_type}");
 
         // Verify the dataset has a CreativeWork assertion with type "Dataset"
         let has_dataset_creative_type = if let Some(claim) = &dataset.claim_v2 {
@@ -477,7 +477,7 @@ fn test_evaluation_with_both_conditions() -> Result<()> {
         } else {
             false
         };
-        println!("Has creative_type 'Dataset': {}", has_dataset_creative_type);
+        println!("Has creative_type 'Dataset': {has_dataset_creative_type}");
     }
 
     // EVALUATION PART
@@ -577,8 +577,7 @@ fn test_evaluation_with_both_conditions() -> Result<()> {
     // Verify the evaluation manifest
     println!("\n=== PERFORMING VERIFICATION ===");
     println!(
-        "Attempting to verify evaluation manifest with ID: {}",
-        eval_id
+        "Attempting to verify evaluation manifest with ID: {eval_id}"
     );
 
     match crate::manifest::evaluation::verify_evaluation_manifest(&eval_id, &storage) {
@@ -586,7 +585,7 @@ fn test_evaluation_with_both_conditions() -> Result<()> {
             println!("✓ Evaluation verification successful");
         }
         Err(e) => {
-            println!("✗ Evaluation verification failed: {}", e);
+            println!("✗ Evaluation verification failed: {e}");
             return Err(e);
         }
     }

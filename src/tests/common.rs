@@ -45,7 +45,7 @@ impl StorageBackend for MockStorageBackend {
         manifests
             .get(id)
             .cloned()
-            .ok_or_else(|| Error::Storage(format!("Manifest not found: {}", id)))
+            .ok_or_else(|| Error::Storage(format!("Manifest not found: {id}")))
     }
 
     fn list_manifests(&self) -> Result<Vec<ManifestMetadata>> {
@@ -78,7 +78,7 @@ impl StorageBackend for MockStorageBackend {
         manifests
             .remove(id)
             .map(|_| ())
-            .ok_or_else(|| Error::Storage(format!("Manifest not found: {}", id)))
+            .ok_or_else(|| Error::Storage(format!("Manifest not found: {id}")))
     }
     fn as_any(&self) -> &dyn std::any::Any {
         self

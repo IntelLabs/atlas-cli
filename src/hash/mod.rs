@@ -168,7 +168,7 @@ mod tests {
         ];
 
         for (input, expected) in &test_vectors {
-            let hash = calculate_hash(*input);
+            let hash = calculate_hash(input);
             assert_eq!(&hash, expected);
         }
     }
@@ -210,8 +210,7 @@ mod tests {
                     e.to_string().contains("empty")
                         || e.to_string().contains("no hashes")
                         || e.to_string().contains("invalid input"),
-                    "Expected error about empty input, got: {}",
-                    e
+                    "Expected error about empty input, got: {e}"
                 );
             }
         }

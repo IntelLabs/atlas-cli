@@ -67,8 +67,7 @@ pub fn verify_launch_endorsement(host_platform: &str) -> Result<bool> {
                 .map_err(|e| Error::CCAttestationError(e.to_string()))?)
         }
         _ => Err(Error::CCAttestationError(format!(
-            "Launch endorsement verification not supported for platform {}",
-            host_platform
+            "Launch endorsement verification not supported for platform {host_platform}"
         ))),
     }
 }

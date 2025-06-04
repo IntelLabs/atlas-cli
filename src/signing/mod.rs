@@ -11,7 +11,7 @@ pub mod utils;
 pub fn load_private_key(key_path: &Path) -> Result<PKey<Private>> {
     let key_data = read(key_path)?;
     PKey::private_key_from_pem(&key_data)
-        .map_err(|e| crate::error::Error::Signing(format!("Failed to load private key: {}", e)))
+        .map_err(|e| crate::error::Error::Signing(format!("Failed to load private key: {e}")))
 }
 
 pub fn sign_data_with_algorithm(
@@ -26,15 +26,15 @@ pub fn sign_data_with_algorithm(
     };
 
     let mut signer = Signer::new(message_digest, private_key)
-        .map_err(|e| crate::error::Error::Signing(format!("Failed to create signer: {}", e)))?;
+        .map_err(|e| crate::error::Error::Signing(format!("Failed to create signer: {e}")))?;
 
     signer
         .update(data)
-        .map_err(|e| crate::error::Error::Signing(format!("Failed to update signer: {}", e)))?;
+        .map_err(|e| crate::error::Error::Signing(format!("Failed to update signer: {e}")))?;
 
     signer
         .sign_to_vec()
-        .map_err(|e| crate::error::Error::Signing(format!("Failed to sign data: {}", e)))
+        .map_err(|e| crate::error::Error::Signing(format!("Failed to sign data: {e}")))
 }
 
 pub fn sign_data(data: &[u8], private_key: &PKey<Private>) -> Result<Vec<u8>> {
@@ -179,7 +179,7 @@ mod tests {
         if let Err(e) = result {
             match e {
                 crate::error::Error::Io(_) => {} // Expected error type
-                _ => panic!("Unexpected error type: {:?}", e),
+                _ => panic!("Unexpected error type: {e:?}"),
             }
         }
     }

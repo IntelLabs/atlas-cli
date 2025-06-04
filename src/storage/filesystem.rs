@@ -40,7 +40,7 @@ impl FilesystemStorage {
         let digest = Sha256::digest(id.as_bytes());
         let filename = hex::encode(digest);
 
-        self.base_path.join(format!("{}.json", filename))
+        self.base_path.join(format!("{filename}.json"))
     }
 
     // Helper to list all manifest files
@@ -112,7 +112,7 @@ impl StorageBackend for FilesystemStorage {
         let path = self.manifest_path(id);
 
         if !path.exists() {
-            return Err(Error::Storage(format!("Manifest not found: {}", id)));
+            return Err(Error::Storage(format!("Manifest not found: {id}")));
         }
 
         // Read file
@@ -122,7 +122,7 @@ impl StorageBackend for FilesystemStorage {
 
         // Deserialize
         serde_json::from_str(&content)
-            .map_err(|e| Error::Serialization(format!("Failed to parse manifest: {}", e)))
+            .map_err(|e| Error::Serialization(format!("Failed to parse manifest: {e}")))
     }
 
     fn list_manifests(&self) -> Result<Vec<ManifestMetadata>> {
@@ -147,7 +147,7 @@ impl StorageBackend for FilesystemStorage {
                 }
                 Err(e) => {
                     // Log but don't fail on unparseable manifest
-                    eprintln!("Error parsing manifest at {:?}: {}", path, e);
+                    eprintln!("Error parsing manifest at {path:?}: {e}");
                 }
             }
         }
@@ -159,7 +159,7 @@ impl StorageBackend for FilesystemStorage {
         let path = self.manifest_path(id);
 
         if !path.exists() {
-            return Err(Error::Storage(format!("Manifest not found: {}", id)));
+            return Err(Error::Storage(format!("Manifest not found: {id}")));
         }
 
         fs::remove_file(&path)?;
@@ -236,8 +236,7 @@ impl FilesystemStorage {
     pub fn import_from_directory(&self, import_path: PathBuf) -> Result<usize> {
         if !import_path.exists() || !import_path.is_dir() {
             return Err(Error::Storage(format!(
-                "Import path does not exist or is not a directory: {:?}",
-                import_path
+                "Import path does not exist or is not a directory: {import_path:?}"
             )));
         }
 
@@ -264,7 +263,7 @@ impl FilesystemStorage {
                     imported_count += 1;
                 }
                 Err(e) => {
-                    eprintln!("Error importing manifest from {:?}: {}", path, e);
+                    eprintln!("Error importing manifest from {path:?}: {e}");
                 }
             }
         }
@@ -277,7 +276,7 @@ impl FilesystemStorage {
         let path = self.manifest_path(id);
 
         if !path.exists() {
-            return Err(Error::Storage(format!("Manifest not found: {}", id)));
+            return Err(Error::Storage(format!("Manifest not found: {id}")));
         }
 
         let metadata = fs::metadata(path)?;
