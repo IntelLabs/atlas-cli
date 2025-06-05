@@ -80,7 +80,7 @@ pub fn link_manifests(
         Err(e) => {
             return Err(Error::Manifest(format!(
                 "Failed to retrieve source manifest {source_id}: {e}"
-            )))
+            )));
         }
     };
 
@@ -89,7 +89,7 @@ pub fn link_manifests(
         Err(e) => {
             return Err(Error::Manifest(format!(
                 "Failed to retrieve target manifest {target_id}: {e}"
-            )))
+            )));
         }
     };
 
@@ -757,7 +757,7 @@ pub fn export_provenance(
         Err(e) => {
             return Err(Error::Manifest(format!(
                 "Failed to retrieve root manifest {id}: {e}"
-            )))
+            )));
         }
     };
 
@@ -794,7 +794,7 @@ pub fn export_provenance(
         _ => {
             return Err(Error::Validation(format!(
                 "Invalid output format '{format}'. Valid options are: json, yaml"
-            )))
+            )));
         }
     };
 
@@ -833,7 +833,7 @@ fn build_provenance_graph(
         Err(e) => {
             return Err(Error::Manifest(format!(
                 "Failed to retrieve manifest {id}: {e}"
-            )))
+            )));
         }
     };
 

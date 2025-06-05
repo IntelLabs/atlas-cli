@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::manifest::common::{create_manifest, AssetKind};
+use crate::manifest::common::{AssetKind, create_manifest};
 use crate::manifest::config::ManifestCreationConfig;
 use crate::storage::traits::StorageBackend;
 use crate::tests::common::MockStorageBackend;
