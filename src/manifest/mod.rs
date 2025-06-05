@@ -32,7 +32,25 @@ pub use utils::{
     determine_manifest_type, manifest_type_to_str, manifest_type_to_string, parse_manifest_type,
 };
 
-// Common manifest operations that might be shared between dataset and model
+/// Validate that a hash string is in the correct format
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::manifest::validate_manifest_hash;
+///
+/// // Valid 64-character hex string
+/// let valid_hash = "a".repeat(64);
+/// assert!(validate_manifest_hash(&valid_hash).is_ok());
+///
+/// // Invalid: wrong length
+/// let short_hash = "abc123";
+/// assert!(validate_manifest_hash(&short_hash).is_err());
+///
+/// // Invalid: non-hex characters
+/// let invalid_chars = "g".repeat(64);
+/// assert!(validate_manifest_hash(&invalid_chars).is_err());
+/// ```
 pub fn validate_manifest_hash(hash: &str) -> Result<()> {
     if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(crate::error::Error::Validation(
@@ -527,7 +545,28 @@ pub fn verify_manifest_link(
     }
 }
 
-/// Validate manifest ID format
+/// Validate a manifest ID format
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::manifest::validate_manifest_id;
+/// use uuid::Uuid;
+///
+/// // Valid UUID
+/// let uuid = Uuid::new_v4().to_string();
+/// assert!(validate_manifest_id(&uuid).is_ok());
+///
+/// // Valid C2PA URN
+/// let urn = format!("urn:c2pa:{}", uuid);
+/// assert!(validate_manifest_id(&urn).is_ok());
+///
+/// // Invalid: empty string
+/// assert!(validate_manifest_id("").is_err());
+///
+/// // Valid: alphanumeric ID
+/// assert!(validate_manifest_id("model-123").is_ok());
+/// ```
 pub fn validate_manifest_id(id: &str) -> Result<()> {
     // Basic validation
     if id.is_empty() {
@@ -598,7 +637,27 @@ pub fn validate_manifest_id(id: &str) -> Result<()> {
     Ok(())
 }
 
-/// Ensure ID is in C2PA URN format
+/// Ensure an ID is in C2PA URN format
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::manifest::ensure_c2pa_urn;
+/// use uuid::Uuid;
+///
+/// // UUID gets converted to URN
+/// let uuid = Uuid::new_v4().to_string();
+/// let urn = ensure_c2pa_urn(&uuid);
+/// assert!(urn.starts_with("urn:c2pa:"));
+///
+/// // Already a URN remains unchanged
+/// let existing_urn = "urn:c2pa:12345678-1234-1234-1234-123456789012";
+/// assert_eq!(ensure_c2pa_urn(existing_urn), existing_urn);
+///
+/// // Non-UUID gets new UUID generated
+/// let result = ensure_c2pa_urn("custom-id");
+/// assert!(result.starts_with("urn:c2pa:"));
+/// ```
 pub fn ensure_c2pa_urn(id: &str) -> String {
     if id.starts_with("urn:c2pa:") {
         id.to_string() // Already in correct format
@@ -613,6 +672,22 @@ pub fn ensure_c2pa_urn(id: &str) -> String {
 }
 
 /// Extract UUID from a C2PA URN
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::manifest::extract_uuid_from_urn;
+/// use uuid::Uuid;
+///
+/// let uuid = Uuid::new_v4();
+/// let urn = format!("urn:c2pa:{}", uuid);
+///
+/// let extracted = extract_uuid_from_urn(&urn).unwrap();
+/// assert_eq!(extracted, uuid);
+///
+/// // Invalid URN format
+/// assert!(extract_uuid_from_urn("invalid:urn").is_err());
+/// ```
 pub fn extract_uuid_from_urn(urn: &str) -> Result<Uuid> {
     let parts: Vec<&str> = urn.split(':').collect();
 

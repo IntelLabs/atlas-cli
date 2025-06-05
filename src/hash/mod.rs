@@ -2,12 +2,51 @@ use crate::error::{Error, Result};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 pub mod utils;
+
+/// Calculate SHA-256 hash of the given data
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::hash::calculate_hash;
+///
+/// let data = b"Hello, World!";
+/// let hash = calculate_hash(data);
+///
+/// // SHA-256 produces 64 character hex string
+/// assert_eq!(hash.len(), 64);
+///
+/// // Same data produces same hash
+/// let hash2 = calculate_hash(data);
+/// assert_eq!(hash, hash2);
+///
+/// // Different data produces different hash
+/// let hash3 = calculate_hash(b"Different data");
+/// assert_ne!(hash, hash3);
+/// ```
 pub fn calculate_hash(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
     hex::encode(hasher.finalize())
 }
 
+/// Calculate SHA-256 hash of a file
+///
+/// # Examples
+///
+/// ```no_run
+/// use atlas_cli::hash::calculate_file_hash;
+/// use std::path::Path;
+///
+/// let path = Path::new("example.txt");
+/// match calculate_file_hash(&path) {
+///     Ok(hash) => {
+///         assert_eq!(hash.len(), 64);
+///         println!("File hash: {}", hash);
+///     }
+///     Err(e) => eprintln!("Error: {}", e),
+/// }
+/// ```
 pub fn calculate_file_hash(path: impl AsRef<Path>) -> Result<String> {
     use std::fs::File;
     use std::io::Read;
@@ -18,6 +57,23 @@ pub fn calculate_file_hash(path: impl AsRef<Path>) -> Result<String> {
     Ok(calculate_hash(&buffer))
 }
 
+/// Combine multiple hashes into a single hash
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::hash::{calculate_hash, combine_hashes};
+///
+/// let hash1 = calculate_hash(b"data1");
+/// let hash2 = calculate_hash(b"data2");
+///
+/// let combined = combine_hashes(&[&hash1, &hash2]).unwrap();
+/// assert_eq!(combined.len(), 64);
+///
+/// // Order matters
+/// let combined_reversed = combine_hashes(&[&hash2, &hash1]).unwrap();
+/// assert_ne!(combined, combined_reversed);
+/// ```
 pub fn combine_hashes(hashes: &[&str]) -> Result<String> {
     let mut hasher = Sha256::new();
     for hash in hashes {
@@ -26,7 +82,26 @@ pub fn combine_hashes(hashes: &[&str]) -> Result<String> {
     }
     Ok(hex::encode(hasher.finalize()))
 }
-// Additional hash-related functionality
+
+/// Verify that data matches the expected hash
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::hash::{calculate_hash, verify_hash};
+///
+/// let data = b"test data";
+/// let hash = calculate_hash(data);
+///
+/// // Correct data verifies successfully
+/// assert!(verify_hash(data, &hash));
+///
+/// // Wrong data fails verification
+/// assert!(!verify_hash(b"wrong data", &hash));
+///
+/// // Invalid hash format returns false
+/// assert!(!verify_hash(data, "invalid_hash"));
+/// ```
 pub fn verify_hash(data: &[u8], expected_hash: &str) -> bool {
     let calculated_hash = hex::encode(Sha256::digest(data));
     calculated_hash == expected_hash

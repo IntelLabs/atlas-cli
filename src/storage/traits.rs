@@ -6,6 +6,23 @@ use std::any::Any;
 use std::fmt;
 use std::path::PathBuf;
 
+/// Represents metadata about a stored manifest
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::storage::traits::{ManifestMetadata, ManifestType};
+///
+/// let metadata = ManifestMetadata {
+///     id: "model-123".to_string(),
+///     name: "My Model".to_string(),
+///     manifest_type: ManifestType::Model,
+///     created_at: "2025-01-23T12:00:00Z".to_string(),
+/// };
+///
+/// assert_eq!(metadata.id, "model-123");
+/// assert_eq!(metadata.manifest_type, ManifestType::Model);
+/// ```
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ManifestMetadata {
     pub id: String,
@@ -30,6 +47,35 @@ pub enum ManifestType {
     Unknown,
 }
 
+/// Represents the location and verification info for an artifact
+///
+/// # Examples
+///
+/// ```no_run
+/// use atlas_cli::storage::traits::ArtifactLocation;
+/// use std::path::PathBuf;
+///
+/// // Create from a file path
+/// let path = PathBuf::from("model.onnx");
+/// let location = ArtifactLocation::new(path).unwrap();
+///
+/// // Verify the file hasn't changed
+/// assert!(location.verify().unwrap());
+/// ```
+///
+/// ```
+/// use atlas_cli::storage::traits::ArtifactLocation;
+/// use std::path::PathBuf;
+///
+/// // Create manually
+/// let location = ArtifactLocation {
+///     url: "file:///path/to/file".to_string(),
+///     file_path: Some(PathBuf::from("/path/to/file")),
+///     hash: "a".repeat(64),
+/// };
+///
+/// assert!(location.file_path.is_some());
+/// ```
 #[derive(Clone, Serialize, Deserialize)]
 pub struct ArtifactLocation {
     pub url: String,

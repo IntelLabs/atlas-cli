@@ -2,6 +2,25 @@
 name = "atlas-cli"
 version = "0.1.0"
 edition = "2021"
+description = "Machine Learning Lifecycle & Transparency Manager - Create and verify manifests for ML models and datasets"
+documentation = "https://docs.rs/atlas-cli"
+homepage = "https://github.com/IntelLabs/atlas-cli"
+repository = "https://github.com/IntelLabs/atlas-cli"
+readme = "README.md"
+license = "Apache-2.0"
+keywords = ["c2pa", "machine-learning", "provenance", "transparency", "cli"]
+categories = ["command-line-utilities", "science", "cryptography"]
+exclude = [
+    "/.github/*",
+    "/examples/*",
+    "/tests/*",
+    "/.gitignore",
+    "/Makefile",
+]
+
+[[bin]]
+name = "atlas-cli"
+path = "src/main.rs"
 
 [features]
 default = []
