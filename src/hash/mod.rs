@@ -1,9 +1,76 @@
+//! # Hash Module
+//!
+//! This module provides cryptographic hash functions for the Atlas CLI, supporting
+//! SHA-256, SHA-384, and SHA-512 algorithms. It integrates with the `atlas-c2pa-lib`
+//! to use consistent hash algorithm types throughout the codebase.
+//!
+//! ## Features
+//!
+//! - Calculate hashes of byte data with configurable algorithms
+//! - Calculate file hashes efficiently using streaming
+//! - Combine multiple hashes into a single hash
+//! - Verify data integrity by comparing hashes
+//! - Automatic algorithm detection based on hash length
+//!
+//! ## Algorithm Support
+//!
+//! The module supports the following hash algorithms:
+//! - **SHA-256**: 256-bit hash (64 hex characters) - Default for backward compatibility
+//! - **SHA-384**: 384-bit hash (96 hex characters) - Default for new manifests
+//! - **SHA-512**: 512-bit hash (128 hex characters) - Maximum security
+//!
+//! ## Examples
+//!
+//! ### Basic hashing with default algorithm (SHA-256)
+//! ```
+//! use atlas_cli::hash::calculate_hash;
+//!
+//! let data = b"Hello, World!";
+//! let hash = calculate_hash(data);
+//! assert_eq!(hash.len(), 64); // SHA-256 produces 64 hex characters
+//! ```
+//!
+//! ### Hashing with specific algorithm
+//! ```
+//! use atlas_cli::hash::calculate_hash_with_algorithm;
+//! use atlas_c2pa_lib::cose::HashAlgorithm;
+//!
+//! let data = b"Hello, World!";
+//! let hash = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha512);
+//! assert_eq!(hash.len(), 128); // SHA-512 produces 128 hex characters
+//! ```
+//!
+//! ### File hashing
+//! ```no_run
+//! use atlas_cli::hash::calculate_file_hash_with_algorithm;
+//! use atlas_c2pa_lib::cose::HashAlgorithm;
+//! use std::path::Path;
+//!
+//! let path = Path::new("large_file.bin");
+//! let hash = calculate_file_hash_with_algorithm(path, &HashAlgorithm::Sha384).unwrap();
+//! assert_eq!(hash.len(), 96); // SHA-384 produces 96 hex characters
+//! ```
+
 use crate::error::{Error, Result};
-use sha2::{Digest, Sha256};
+use atlas_c2pa_lib::cose::HashAlgorithm;
+use sha2::{Digest, Sha256, Sha384, Sha512};
+use std::io::Read;
 use std::path::Path;
+
 pub mod utils;
 
-/// Calculate SHA-256 hash of the given data
+/// Calculate SHA-256 hash of the given data (default for backward compatibility)
+///
+/// This function uses SHA-256 by default. For other algorithms, use
+/// [`calculate_hash_with_algorithm`].
+///
+/// # Arguments
+///
+/// * `data` - The byte slice to hash
+///
+/// # Returns
+///
+/// A hexadecimal string representation of the hash (64 characters for SHA-256)
 ///
 /// # Examples
 ///
@@ -25,12 +92,68 @@ pub mod utils;
 /// assert_ne!(hash, hash3);
 /// ```
 pub fn calculate_hash(data: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(data);
-    hex::encode(hasher.finalize())
+    calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256)
 }
 
-/// Calculate SHA-256 hash of a file
+/// Calculate hash of data using the specified algorithm
+///
+/// # Arguments
+///
+/// * `data` - The byte slice to hash
+/// * `algorithm` - The hash algorithm to use (SHA-256, SHA-384, or SHA-512)
+///
+/// # Returns
+///
+/// A hexadecimal string representation of the hash:
+/// - SHA-256: 64 characters
+/// - SHA-384: 96 characters
+/// - SHA-512: 128 characters
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::hash::calculate_hash_with_algorithm;
+/// use atlas_c2pa_lib::cose::HashAlgorithm;
+///
+/// let data = b"Hello, World!";
+///
+/// // SHA-256
+/// let hash256 = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256);
+/// assert_eq!(hash256.len(), 64);
+///
+/// // SHA-384
+/// let hash384 = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha384);
+/// assert_eq!(hash384.len(), 96);
+///
+/// // SHA-512
+/// let hash512 = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha512);
+/// assert_eq!(hash512.len(), 128);
+///
+/// // Different algorithms produce different hashes
+/// assert_ne!(hash256, hash384);
+/// assert_ne!(hash384, hash512);
+/// ```
+pub fn calculate_hash_with_algorithm(data: &[u8], algorithm: &HashAlgorithm) -> String {
+    match algorithm {
+        HashAlgorithm::Sha256 => hex::encode(Sha256::digest(data)),
+        HashAlgorithm::Sha384 => hex::encode(Sha384::digest(data)),
+        HashAlgorithm::Sha512 => hex::encode(Sha512::digest(data)),
+    }
+}
+
+/// Calculate SHA-256 hash of a file (default for backward compatibility)
+///
+/// This function uses SHA-256 by default. For other algorithms, use
+/// [`calculate_file_hash_with_algorithm`].
+///
+/// # Arguments
+///
+/// * `path` - Path to the file to hash
+///
+/// # Returns
+///
+/// * `Ok(String)` - The hexadecimal hash string (64 characters for SHA-256)
+/// * `Err(Error)` - If the file cannot be read
 ///
 /// # Examples
 ///
@@ -48,16 +171,66 @@ pub fn calculate_hash(data: &[u8]) -> String {
 /// }
 /// ```
 pub fn calculate_file_hash(path: impl AsRef<Path>) -> Result<String> {
-    use std::fs::File;
-    use std::io::Read;
+    calculate_file_hash_with_algorithm(path, &HashAlgorithm::Sha256)
+}
 
-    let mut file = File::open(path)?;
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer)?;
-    Ok(calculate_hash(&buffer))
+/// Calculate hash of a file using the specified algorithm
+///
+/// This function efficiently hashes files of any size by reading them in chunks,
+/// avoiding loading the entire file into memory.
+///
+/// # Arguments
+///
+/// * `path` - Path to the file to hash
+/// * `algorithm` - The hash algorithm to use
+///
+/// # Returns
+///
+/// * `Ok(String)` - The hexadecimal hash string
+/// * `Err(Error)` - If the file cannot be read
+///
+/// # Examples
+///
+/// ```no_run
+/// use atlas_cli::hash::calculate_file_hash_with_algorithm;
+/// use atlas_c2pa_lib::cose::HashAlgorithm;
+/// use std::path::Path;
+///
+/// let path = Path::new("large_model.onnx");
+///
+/// // Use SHA-512 for maximum security
+/// let hash = calculate_file_hash_with_algorithm(&path, &HashAlgorithm::Sha512)?;
+/// assert_eq!(hash.len(), 128);
+///
+/// # Ok::<(), atlas_cli::error::Error>(())
+/// ```
+pub fn calculate_file_hash_with_algorithm(
+    path: impl AsRef<Path>,
+    algorithm: &HashAlgorithm,
+) -> Result<String> {
+    let file = std::fs::File::open(path)?;
+
+    match algorithm {
+        HashAlgorithm::Sha256 => hash_reader::<Sha256, _>(file),
+        HashAlgorithm::Sha384 => hash_reader::<Sha384, _>(file),
+        HashAlgorithm::Sha512 => hash_reader::<Sha512, _>(file),
+    }
 }
 
 /// Combine multiple hashes into a single hash
+///
+/// This function concatenates the decoded bytes of multiple hashes and produces
+/// a new SHA-256 hash. This is useful for creating a single hash that represents
+/// multiple components.
+///
+/// # Arguments
+///
+/// * `hashes` - Array of hexadecimal hash strings to combine
+///
+/// # Returns
+///
+/// * `Ok(String)` - The combined hash (64 characters, SHA-256)
+/// * `Err(Error)` - If any input hash is invalid hexadecimal
 ///
 /// # Examples
 ///
@@ -85,6 +258,26 @@ pub fn combine_hashes(hashes: &[&str]) -> Result<String> {
 
 /// Verify that data matches the expected hash
 ///
+/// This function automatically detects the hash algorithm based on the hash length
+/// and verifies that the provided data produces the same hash.
+///
+/// # Arguments
+///
+/// * `data` - The data to verify
+/// * `expected_hash` - The expected hash in hexadecimal format
+///
+/// # Returns
+///
+/// * `true` if the data matches the hash
+/// * `false` if the data doesn't match or the hash format is invalid
+///
+/// # Algorithm Detection
+///
+/// - 64 characters: SHA-256
+/// - 96 characters: SHA-384
+/// - 128 characters: SHA-512
+/// - Other lengths: Defaults to SHA-256
+///
 /// # Examples
 ///
 /// ```
@@ -103,8 +296,196 @@ pub fn combine_hashes(hashes: &[&str]) -> Result<String> {
 /// assert!(!verify_hash(data, "invalid_hash"));
 /// ```
 pub fn verify_hash(data: &[u8], expected_hash: &str) -> bool {
-    let calculated_hash = hex::encode(Sha256::digest(data));
+    let algorithm = detect_hash_algorithm(expected_hash);
+    let calculated_hash = calculate_hash_with_algorithm(data, &algorithm);
     calculated_hash == expected_hash
+}
+
+/// Verify hash with an explicitly specified algorithm
+///
+/// Use this when you know which algorithm was used to create the hash.
+///
+/// # Arguments
+///
+/// * `data` - The data to verify
+/// * `expected_hash` - The expected hash in hexadecimal format
+/// * `algorithm` - The hash algorithm that was used
+///
+/// # Returns
+///
+/// * `true` if the data matches the hash
+/// * `false` if the data doesn't match
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::hash::{calculate_hash_with_algorithm, verify_hash_with_algorithm};
+/// use atlas_c2pa_lib::cose::HashAlgorithm;
+///
+/// let data = b"test data";
+/// let hash = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha384);
+///
+/// // Verification with correct algorithm succeeds
+/// assert!(verify_hash_with_algorithm(data, &hash, &HashAlgorithm::Sha384));
+///
+/// // Verification with wrong algorithm fails
+/// assert!(!verify_hash_with_algorithm(data, &hash, &HashAlgorithm::Sha256));
+/// ```
+pub fn verify_hash_with_algorithm(
+    data: &[u8],
+    expected_hash: &str,
+    algorithm: &HashAlgorithm,
+) -> bool {
+    let calculated_hash = calculate_hash_with_algorithm(data, algorithm);
+    calculated_hash == expected_hash
+}
+
+/// Detect hash algorithm based on hash length
+///
+/// This function infers the hash algorithm from the hexadecimal hash string length.
+///
+/// # Arguments
+///
+/// * `hash` - Hexadecimal hash string
+///
+/// # Returns
+///
+/// The detected `HashAlgorithm`:
+/// - 64 characters → SHA-256
+/// - 96 characters → SHA-384
+/// - 128 characters → SHA-512
+/// - Other lengths → SHA-256 (default)
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::hash::detect_hash_algorithm;
+/// use atlas_c2pa_lib::cose::HashAlgorithm;
+///
+/// let sha256_hash = "a".repeat(64);
+/// let sha384_hash = "b".repeat(96);
+/// let sha512_hash = "c".repeat(128);
+///
+/// assert!(matches!(detect_hash_algorithm(&sha256_hash), HashAlgorithm::Sha256));
+/// assert!(matches!(detect_hash_algorithm(&sha384_hash), HashAlgorithm::Sha384));
+/// assert!(matches!(detect_hash_algorithm(&sha512_hash), HashAlgorithm::Sha512));
+/// ```
+pub fn detect_hash_algorithm(hash: &str) -> HashAlgorithm {
+    match hash.len() {
+        64 => HashAlgorithm::Sha256,  // 256 bits = 32 bytes = 64 hex chars
+        96 => HashAlgorithm::Sha384,  // 384 bits = 48 bytes = 96 hex chars
+        128 => HashAlgorithm::Sha512, // 512 bits = 64 bytes = 128 hex chars
+        _ => HashAlgorithm::Sha256,   // Default
+    }
+}
+
+/// Get the expected hash length for an algorithm
+///
+/// # Arguments
+///
+/// * `algorithm` - Algorithm name as a string (case-insensitive)
+///
+/// # Returns
+///
+/// The expected hexadecimal string length:
+/// - "sha256" → 64
+/// - "sha384" → 96
+/// - "sha512" → 128
+/// - Other → 64 (default)
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::hash::get_hash_length;
+///
+/// assert_eq!(get_hash_length("sha256"), 64);
+/// assert_eq!(get_hash_length("SHA384"), 96);
+/// assert_eq!(get_hash_length("sha512"), 128);
+/// assert_eq!(get_hash_length("unknown"), 64); // defaults to SHA-256
+/// ```
+pub fn get_hash_length(algorithm: &str) -> usize {
+    match algorithm.to_lowercase().as_str() {
+        "sha256" => 64,
+        "sha384" => 96,
+        "sha512" => 128,
+        _ => 64,
+    }
+}
+
+/// Get the algorithm name as used in manifests
+///
+/// Converts a `HashAlgorithm` to its string representation for storage in manifests.
+///
+/// # Arguments
+///
+/// * `algorithm` - The hash algorithm
+///
+/// # Returns
+///
+/// The algorithm name as a string:
+/// - `HashAlgorithm::Sha256` → "sha256"
+/// - `HashAlgorithm::Sha384` → "sha384"
+/// - `HashAlgorithm::Sha512` → "sha512"
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::hash::algorithm_to_string;
+/// use atlas_c2pa_lib::cose::HashAlgorithm;
+///
+/// assert_eq!(algorithm_to_string(&HashAlgorithm::Sha256), "sha256");
+/// assert_eq!(algorithm_to_string(&HashAlgorithm::Sha384), "sha384");
+/// assert_eq!(algorithm_to_string(&HashAlgorithm::Sha512), "sha512");
+/// ```
+pub fn algorithm_to_string(algorithm: &HashAlgorithm) -> &'static str {
+    algorithm.as_str()
+}
+
+/// Parse algorithm from string
+///
+/// Converts a string algorithm name to a `HashAlgorithm` enum value.
+///
+/// # Arguments
+///
+/// * `s` - Algorithm name (case-sensitive: "sha256", "sha384", or "sha512")
+///
+/// # Returns
+///
+/// * `Ok(HashAlgorithm)` - The parsed algorithm
+/// * `Err(Error)` - If the algorithm name is not recognized
+///
+/// # Examples
+///
+/// ```
+/// use atlas_cli::hash::parse_algorithm;
+/// use atlas_c2pa_lib::cose::HashAlgorithm;
+///
+/// let algo = parse_algorithm("sha384").unwrap();
+/// assert!(matches!(algo, HashAlgorithm::Sha384));
+///
+/// // Invalid algorithm names return an error
+/// assert!(parse_algorithm("sha1").is_err());
+/// assert!(parse_algorithm("SHA256").is_err()); // case sensitive
+/// ```
+pub fn parse_algorithm(s: &str) -> Result<HashAlgorithm> {
+    use std::str::FromStr;
+    HashAlgorithm::from_str(s).map_err(|e| Error::Validation(e))
+}
+
+/// Internal helper to hash data from a reader using streaming
+fn hash_reader<D: Digest, R: Read>(mut reader: R) -> Result<String> {
+    let mut hasher = D::new();
+    let mut buffer = [0; 8192];
+
+    loop {
+        let bytes_read = reader.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+
+    Ok(hex::encode(hasher.finalize()))
 }
 
 #[cfg(test)]
@@ -121,6 +502,27 @@ mod tests {
         let data = b"test data";
         let hash = calculate_hash(data);
         assert_eq!(hash.len(), 64); // SHA-256 hash is 64 hex characters
+    }
+
+    #[test]
+    fn test_calculate_hash_with_algorithms() -> Result<()> {
+        let data = b"test data";
+
+        // Test different algorithms produce different length hashes
+        let sha256 = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256);
+        let sha384 = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha384);
+        let sha512 = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha512);
+
+        assert_eq!(sha256.len(), 64);
+        assert_eq!(sha384.len(), 96);
+        assert_eq!(sha512.len(), 128);
+
+        // Different algorithms produce different hashes
+        assert_ne!(sha256, sha384);
+        assert_ne!(sha384, sha512);
+        assert_ne!(sha256, sha512);
+
+        Ok(())
     }
 
     #[test]
@@ -141,6 +543,31 @@ mod tests {
 
         let new_hash = calculate_file_hash(&file_path)?;
         assert_ne!(hash, new_hash);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_calculate_file_hash_with_algorithms() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("test_algos.txt");
+
+        // Create a test file
+        let mut file = safe_create_file(&file_path, false)?;
+        file.write_all(b"test data for algorithms")?;
+
+        // Test different algorithms
+        let sha256 = calculate_file_hash_with_algorithm(&file_path, &HashAlgorithm::Sha256)?;
+        let sha384 = calculate_file_hash_with_algorithm(&file_path, &HashAlgorithm::Sha384)?;
+        let sha512 = calculate_file_hash_with_algorithm(&file_path, &HashAlgorithm::Sha512)?;
+
+        assert_eq!(sha256.len(), 64);
+        assert_eq!(sha384.len(), 96);
+        assert_eq!(sha512.len(), 128);
+
+        // Different algorithms produce different hashes
+        assert_ne!(sha256, sha384);
+        assert_ne!(sha384, sha512);
 
         Ok(())
     }
@@ -175,6 +602,47 @@ mod tests {
 
         // Verification should fail with non-hex characters
         assert!(!verify_hash(test_data, &("Z".repeat(64))));
+    }
+
+    #[test]
+    fn test_verify_hash_auto_detect() {
+        let data = b"test data";
+
+        // Create hashes with different algorithms
+        let sha256 = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256);
+        let sha384 = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha384);
+        let sha512 = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha512);
+
+        // Verify should auto-detect the algorithm
+        assert!(verify_hash(data, &sha256));
+        assert!(verify_hash(data, &sha384));
+        assert!(verify_hash(data, &sha512));
+    }
+
+    #[test]
+    fn test_detect_hash_algorithm() {
+        let sha256_hash = "a".repeat(64);
+        let sha384_hash = "b".repeat(96);
+        let sha512_hash = "c".repeat(128);
+
+        assert!(matches!(
+            detect_hash_algorithm(&sha256_hash),
+            HashAlgorithm::Sha256
+        ));
+        assert!(matches!(
+            detect_hash_algorithm(&sha384_hash),
+            HashAlgorithm::Sha384
+        ));
+        assert!(matches!(
+            detect_hash_algorithm(&sha512_hash),
+            HashAlgorithm::Sha512
+        ));
+
+        // Unknown length defaults to SHA-256
+        assert!(matches!(
+            detect_hash_algorithm("short"),
+            HashAlgorithm::Sha256
+        ));
     }
 
     #[test]
@@ -249,6 +717,44 @@ mod tests {
     }
 
     #[test]
+    fn test_algorithm_to_string() {
+        assert_eq!(algorithm_to_string(&HashAlgorithm::Sha256), "sha256");
+        assert_eq!(algorithm_to_string(&HashAlgorithm::Sha384), "sha384");
+        assert_eq!(algorithm_to_string(&HashAlgorithm::Sha512), "sha512");
+    }
+
+    #[test]
+    fn test_parse_algorithm() {
+        // Valid algorithms
+        assert!(matches!(
+            parse_algorithm("sha256").unwrap(),
+            HashAlgorithm::Sha256
+        ));
+        assert!(matches!(
+            parse_algorithm("sha384").unwrap(),
+            HashAlgorithm::Sha384
+        ));
+        assert!(matches!(
+            parse_algorithm("sha512").unwrap(),
+            HashAlgorithm::Sha512
+        ));
+
+        // Invalid algorithms
+        assert!(parse_algorithm("sha1").is_err());
+        assert!(parse_algorithm("SHA256").is_err()); // case sensitive
+        assert!(parse_algorithm("").is_err());
+    }
+
+    #[test]
+    fn test_get_hash_length() {
+        assert_eq!(get_hash_length("sha256"), 64);
+        assert_eq!(get_hash_length("SHA256"), 64); // case insensitive
+        assert_eq!(get_hash_length("sha384"), 96);
+        assert_eq!(get_hash_length("sha512"), 128);
+        assert_eq!(get_hash_length("unknown"), 64); // defaults to SHA-256
+    }
+
+    #[test]
     fn test_combine_hashes_determinism() -> Result<()> {
         let hash1 = calculate_hash(b"data1");
         let hash2 = calculate_hash(b"data2");
@@ -276,8 +782,11 @@ mod tests {
             Ok(hash) => {
                 // If it succeeds, verify it's a valid hash
                 assert_eq!(hash.len(), 64);
-                // The hash of empty input should generally match a default value
-                // or be derived predictably from the empty input
+                // The hash of empty input should be the SHA-256 of empty data
+                assert_eq!(
+                    hash,
+                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                );
             }
             Err(e) => {
                 // If it errors, the error should indicate empty input
@@ -324,6 +833,37 @@ mod tests {
 
         // Hash should be the same as the first hash
         assert_eq!(hash1, hash3);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_large_file_hashing() -> Result<()> {
+        let dir = tempdir()?;
+        let file_path = dir.path().join("large_file.bin");
+
+        // Create a 10MB file
+        {
+            let mut file = safe_create_file(&file_path, false)?;
+            let chunk = vec![0x42u8; 1024 * 1024]; // 1MB chunk
+            for _ in 0..10 {
+                file.write_all(&chunk)?;
+            }
+        }
+
+        // Test that we can hash large files with different algorithms
+        let sha256 = calculate_file_hash_with_algorithm(&file_path, &HashAlgorithm::Sha256)?;
+        let sha384 = calculate_file_hash_with_algorithm(&file_path, &HashAlgorithm::Sha384)?;
+        let sha512 = calculate_file_hash_with_algorithm(&file_path, &HashAlgorithm::Sha512)?;
+
+        assert_eq!(sha256.len(), 64);
+        assert_eq!(sha384.len(), 96);
+        assert_eq!(sha512.len(), 128);
+
+        // All should be different
+        assert_ne!(sha256, sha384);
+        assert_ne!(sha384, sha512);
+        assert_ne!(sha256, sha512);
 
         Ok(())
     }

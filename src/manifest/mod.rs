@@ -1,8 +1,9 @@
 use crate::error::{Error, Result};
 use crate::storage::traits::StorageBackend;
+use atlas_c2pa_lib::cose::HashAlgorithm;
 use atlas_c2pa_lib::cross_reference::CrossReference;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use sha2::Digest;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
@@ -93,6 +94,24 @@ pub fn link_manifests(
         }
     };
 
+    // Detect the hash algorithm used in the source manifest
+    let algorithm = if let Some(first_ingredient) = source_manifest.ingredients.first() {
+        match first_ingredient.data.alg.as_str() {
+            "sha256" => HashAlgorithm::Sha256,
+            "sha384" => HashAlgorithm::Sha384,
+            "sha512" => HashAlgorithm::Sha512,
+            _ => HashAlgorithm::Sha256, // Default
+        }
+    } else {
+        // If no ingredients, check if source manifest has any cross-references
+        if let Some(first_cross_ref) = source_manifest.cross_references.first() {
+            // Detect algorithm from existing cross-reference hash length
+            crate::hash::detect_hash_algorithm(&first_cross_ref.manifest_hash) // This already returns HashAlgorithm
+        } else {
+            HashAlgorithm::Sha256 // Default if no ingredients or cross-references
+        }
+    };
+
     // Check if a cross-reference to this target already exists
     let duplicate_ref = source_manifest
         .cross_references
@@ -101,10 +120,12 @@ pub fn link_manifests(
 
     if let Some(existing_ref) = duplicate_ref {
         println!("Warning: A cross-reference to {target_id} already exists");
+
         // Check if hash matches (if it doesn't, this could indicate a conflict)
         let target_json = serde_json::to_string(&target_manifest)
             .map_err(|e| Error::Serialization(e.to_string()))?;
-        let target_hash = hex::encode(Sha256::digest(target_json.as_bytes()));
+        let target_hash =
+            crate::hash::calculate_hash_with_algorithm(target_json.as_bytes(), &algorithm);
 
         if existing_ref.manifest_hash != target_hash {
             // Handle conflict by creating a versioned reference
@@ -115,6 +136,7 @@ pub fn link_manifests(
                 source_id,
                 target_id,
                 storage,
+                &algorithm,
             );
         } else {
             println!("Existing cross-reference is identical, no changes needed");
@@ -122,10 +144,11 @@ pub fn link_manifests(
         }
     }
 
-    // Create a hash of the target manifest
+    // Create a hash of the target manifest using the detected algorithm
     let target_json =
         serde_json::to_string(&target_manifest).map_err(|e| Error::Serialization(e.to_string()))?;
-    let target_hash = hex::encode(Sha256::digest(target_json.as_bytes()));
+    let target_hash =
+        crate::hash::calculate_hash_with_algorithm(target_json.as_bytes(), &algorithm);
 
     // Convert IDs to proper C2PA URNs if they're not already
     let target_urn = ensure_c2pa_urn(target_id);
@@ -141,6 +164,7 @@ pub fn link_manifests(
 
     println!("Successfully linked manifest {source_id} to {target_id}");
     println!("Updated manifest ID: {updated_id}");
+    println!("Using hash algorithm: {}", algorithm.as_str());
 
     Ok(())
 }
@@ -152,6 +176,7 @@ fn create_versioned_link(
     source_id: &str,
     target_id: &str,
     storage: &(impl StorageBackend + ?Sized),
+    algorithm: &HashAlgorithm,
 ) -> Result<()> {
     // Generate a versioned ID following C2PA spec section 8.2
     // Format: original_urn:claim_generator:version_reason
@@ -198,10 +223,10 @@ fn create_versioned_link(
         1
     );
 
-    // Create a hash of the target manifest
+    // Create a hash of the target manifest using the specified algorithm
     let target_json =
         serde_json::to_string(&target_manifest).map_err(|e| Error::Serialization(e.to_string()))?;
-    let target_hash = hex::encode(Sha256::digest(target_json.as_bytes()));
+    let target_hash = crate::hash::calculate_hash_with_algorithm(target_json.as_bytes(), algorithm);
 
     // Create a cross-reference with the versioned ID
     let cross_reference = CrossReference::new(versioned_id.clone(), target_hash);
@@ -216,6 +241,7 @@ fn create_versioned_link(
         "Successfully linked manifest {source_id} to {target_id} (versioned as {versioned_id})"
     );
     println!("Updated manifest ID: {updated_id}");
+    println!("Using hash algorithm: {}", algorithm.as_str());
 
     Ok(())
 }
