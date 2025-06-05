@@ -20,11 +20,15 @@ pub fn create_storage(storage_type: &str, url: String) -> Result<Box<dyn Storage
         "local-fs" => Ok(Box::new(FilesystemStorage::new(url)?)),
         // Backwards compatibility with warnings
         "local" => {
-            eprintln!("Warning: Storage type 'local' is deprecated and will be removed in a future version. Use 'database' instead.");
+            eprintln!(
+                "Warning: Storage type 'local' is deprecated and will be removed in a future version. Use 'database' instead."
+            );
             Ok(Box::new(DatabaseStorage::new(url)?))
         }
         "filesystem" => {
-            eprintln!("Warning: Storage type 'filesystem' is deprecated and will be removed in a future version. Use 'local-fs' instead.");
+            eprintln!(
+                "Warning: Storage type 'filesystem' is deprecated and will be removed in a future version. Use 'local-fs' instead."
+            );
             Ok(Box::new(FilesystemStorage::new(url)?))
         }
         _ => Err(crate::error::Error::Validation(

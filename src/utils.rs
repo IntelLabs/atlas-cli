@@ -2,7 +2,25 @@ use crate::error::{Error, Result};
 use std::fs::{self, File, OpenOptions};
 use std::path::{Path, PathBuf};
 
-/// Ensures the path is not a symlink or hard link unless explicitly allowed
+/// Ensures a file path is safe to use (not a symlink or hard link unless allowed)
+///
+/// # Examples
+///
+/// ```no_run
+/// use atlas_cli::utils::safe_file_path;
+/// use std::path::Path;
+///
+/// let path = Path::new("/tmp/safe_file.txt");
+///
+/// // Check path without allowing symlinks
+/// match safe_file_path(&path, false) {
+///     Ok(safe_path) => println!("Path is safe: {:?}", safe_path),
+///     Err(e) => println!("Path is not safe: {}", e),
+/// }
+///
+/// // Allow symlinks
+/// let _ = safe_file_path(&path, true);
+/// ```
 pub fn safe_file_path(path: &Path, allow_symlinks: bool) -> Result<PathBuf> {
     // Check if the file exists
     if path.exists() {
@@ -60,12 +78,49 @@ fn is_safe_symlink_target(target: &Path) -> bool {
 }
 
 /// Safely opens a file for reading
+///
+/// # Examples
+///
+/// ```no_run
+/// use atlas_cli::utils::safe_open_file;
+/// use std::path::Path;
+/// use std::io::Read;
+///
+/// let path = Path::new("example.txt");
+///
+/// match safe_open_file(&path, false) {
+///     Ok(mut file) => {
+///         let mut contents = String::new();
+///         file.read_to_string(&mut contents).unwrap();
+///         println!("File contents: {}", contents);
+///     }
+///     Err(e) => eprintln!("Error opening file: {}", e),
+/// }
+/// ```
 pub fn safe_open_file(path: &Path, allow_symlinks: bool) -> Result<File> {
     let safe_path = safe_file_path(path, allow_symlinks)?;
     File::open(&safe_path).map_err(Error::from)
 }
 
 /// Safely creates a file for writing
+///
+/// # Examples
+///
+/// ```no_run
+/// use atlas_cli::utils::safe_create_file;
+/// use std::path::Path;
+/// use std::io::Write;
+///
+/// let path = Path::new("/tmp/new_file.txt");
+///
+/// match safe_create_file(&path, false) {
+///     Ok(mut file) => {
+///         file.write_all(b"Hello, World!").unwrap();
+///         println!("File created successfully");
+///     }
+///     Err(e) => eprintln!("Error creating file: {}", e),
+/// }
+/// ```
 pub fn safe_create_file(path: &Path, allow_symlinks: bool) -> Result<File> {
     let safe_path = safe_file_path(path, allow_symlinks)?;
     File::create(&safe_path).map_err(Error::from)

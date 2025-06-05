@@ -19,14 +19,51 @@ A command-line interface tool for creating, managing, and verifying Content Prov
 - **Format Support**: Work with models in ONNX, TensorFlow, PyTorch, and Keras formats
 - **TEE Attestation**: Optional support for Trusted Execution Environment (TDX) integration
 
-## Quick Installation
+## Installation
+
+### Prerequisites
+
+- Rust toolchain (1.70 or later) - [Install Rust](https://rustup.rs/)
+- OpenSSL development libraries
+- (Optional) Protobuf compiler for TDX support
+
+## Install Methods
+
+### Install from crates.io
+
+The simplest way to install Atlas CLI is using cargo:
+
+```bash
+cargo install atlas-cli
+```
+#### Install with Specific Features
+##### With TDX Attestation Support:
+
+```bash
+# First install protobuf compiler
+# Ubuntu/Debian:
+sudo apt install protobuf-compiler
+
+# Then install with TDX feature
+cargo install atlas-cli --features with-tdx
+```
+#### Install from Source
 
 ```bash
 # Clone repositories
 git clone https://github.com/IntelLabs/atlas-cli
+cd atlas-cli
 
-# Build CLI
-cd atlas-cli && cargo build
+# Build and install
+cargo install --path .
+
+# Or build without installing
+cargo build --release
+# Binary will be at ./target/release/atlas-cli
+
+# To update to the latest version:
+cargo install atlas-cli --force
+
 ```
 
 ## Documentation
@@ -62,3 +99,5 @@ If you use Atlas CLI in your research or work, please cite our paper:
 
 - **Paper**: [Atlas: A Framework for ML Lifecycle Provenance & Transparency](https://arxiv.org/abs/2502.19567v1)
 - **Blog Post**: [Building Trust in AI: An End-to-End Approach for the Machine Learning Lifecycle](https://community.intel.com/t5/Blogs/Tech-Innovation/Artificial-Intelligence-AI/Building-Trust-in-AI-An-End-to-End-Approach-for-the-Machine/post/1648746)
+- **Documentation**: [docs.rs/atlas-cli]
+- **Crate**: [crates.io/crates/atlas-cli]

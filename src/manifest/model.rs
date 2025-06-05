@@ -1,5 +1,5 @@
 use crate::error::Result;
-use crate::manifest::common::{list_manifests, verify_manifest, AssetKind};
+use crate::manifest::common::{AssetKind, list_manifests, verify_manifest};
 use crate::manifest::config::ManifestCreationConfig;
 use crate::storage::traits::StorageBackend;
 

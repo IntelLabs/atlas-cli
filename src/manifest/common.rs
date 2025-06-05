@@ -16,8 +16,8 @@ use atlas_c2pa_lib::cross_reference::CrossReference;
 use atlas_c2pa_lib::datetime_wrapper::OffsetDateTimeWrapper;
 use atlas_c2pa_lib::ingredient::{Ingredient, IngredientData};
 use atlas_c2pa_lib::manifest::Manifest;
-use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD;
 use serde_json::to_string_pretty;
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -281,7 +281,7 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
                 return Err(Error::Validation(format!(
                     "Invalid output format '{}'. Valid options are: json, cbor",
                     config.output_format
-                )))
+                )));
             }
         }
     }
@@ -520,7 +520,9 @@ fn verify_asset_specific_requirements(manifest: &Manifest) -> Result<()> {
             });
 
             if !has_software_assertion && !has_software_parameters {
-                println!("WARNING: Software manifest doesn't contain a Software creative work assertion or software_type parameter");
+                println!(
+                    "WARNING: Software manifest doesn't contain a Software creative work assertion or software_type parameter"
+                );
 
                 return Err(Error::Validation(
                     "Software manifest must contain a Software creative work assertion or software_type parameter".to_string(),
@@ -534,7 +536,9 @@ fn verify_asset_specific_requirements(manifest: &Manifest) -> Result<()> {
             });
 
             if !has_evaluation_assertion {
-                println!("WARNING: Evaluation manifest doesn't contain an EvaluationResult creative work assertion");
+                println!(
+                    "WARNING: Evaluation manifest doesn't contain an EvaluationResult creative work assertion"
+                );
 
                 return Err(Error::Validation(
                     "Evaluation manifest must contain an EvaluationResult creative work assertion"
@@ -702,7 +706,7 @@ fn get_cc_attestation_assertion() -> Result<CustomAssertion> {
         Err(e) => {
             return Err(Error::CCAttestationError(format!(
                 "Failed to get attestation: {e}"
-            )))
+            )));
         }
     };
 
@@ -712,7 +716,7 @@ fn get_cc_attestation_assertion() -> Result<CustomAssertion> {
         Err(e) => {
             return Err(Error::CCAttestationError(format!(
                 "Error detecting attestation platform: {e}"
-            )))
+            )));
         }
     };
 

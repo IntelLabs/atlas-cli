@@ -1,5 +1,5 @@
 use crate::error::{Error, Result};
-use crate::manifest::common::{self, list_manifests, verify_manifest, AssetKind};
+use crate::manifest::common::{self, AssetKind, list_manifests, verify_manifest};
 use crate::manifest::config::ManifestCreationConfig;
 use crate::manifest::{determine_manifest_type, manifest_type_to_str};
 use crate::storage::traits::StorageBackend;
