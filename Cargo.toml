@@ -22,16 +22,16 @@ hex = "0.4"
 indicatif = "0.17"
 lazy_static = "1.4"
 log = "0.4"
-openssl = "0.10.72"
+openssl = "0.10.73"
 sha2 = "0.10"
-thiserror = "1.0"
+thiserror = "2.0.12"
 time = { version = "0.3", features = ["serde"] }
 uuid = { version = "1.6", features = ["v4"] }
 walkdir = "2.4"
 
 # CLI and async/runtime
 clap = { version = "4.4", features = ["derive"] }
-tokio = "1.38.2"
+tokio = "1.45.1"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -40,7 +40,7 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 
 # HTTP client
-reqwest = { version = "0.11", features = ["blocking", "json"] }
+reqwest = { version = "0.12.15", features = ["blocking", "json"] }
 
 [dev-dependencies]
-tempfile = "3.2"
+tempfile = "3.20.0"
