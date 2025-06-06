@@ -1,5 +1,7 @@
 use crate::cc_attestation;
 use crate::error::{Error, Result};
+use crate::hash;
+
 use crate::hash::utils::calculate_file_hash;
 use crate::manifest::config::ManifestCreationConfig;
 use crate::manifest::utils::{
@@ -12,6 +14,7 @@ use atlas_c2pa_lib::assertion::{
 };
 use atlas_c2pa_lib::asset_type::AssetType;
 use atlas_c2pa_lib::claim::ClaimV2;
+use atlas_c2pa_lib::cose::HashAlgorithm;
 use atlas_c2pa_lib::cross_reference::CrossReference;
 use atlas_c2pa_lib::datetime_wrapper::OffsetDateTimeWrapper;
 use atlas_c2pa_lib::ingredient::{Ingredient, IngredientData};
@@ -48,7 +51,13 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
         };
 
         // Use the helper function to create the ingredient
-        let ingredient = create_ingredient_from_path(path, ingredient_name, asset_type, format)?;
+        let ingredient = create_ingredient_from_path_with_algorithm(
+            path,
+            ingredient_name,
+            asset_type,
+            format,
+            &config.hash_alg,
+        )?;
         ingredients.push(ingredient);
     }
 
@@ -679,10 +688,26 @@ pub fn create_ingredient_from_path(
     asset_type: AssetType,
     format: String,
 ) -> Result<Ingredient> {
+    create_ingredient_from_path_with_algorithm(
+        path,
+        name,
+        asset_type,
+        format,
+        &HashAlgorithm::Sha256,
+    )
+}
+
+pub fn create_ingredient_from_path_with_algorithm(
+    path: &Path,
+    name: &str,
+    asset_type: AssetType,
+    format: String,
+    algorithm: &HashAlgorithm,
+) -> Result<Ingredient> {
     let ingredient_data = IngredientData {
-        url: path.to_string_lossy().to_string(),
-        alg: "sha256".to_string(),
-        hash: crate::hash::calculate_file_hash(path)?,
+        url: format!("file://{}", path.to_string_lossy()),
+        alg: algorithm.as_str().to_string(),
+        hash: hash::calculate_file_hash_with_algorithm(path, algorithm)?,
         data_types: vec![asset_type],
         linked_ingredient_url: None,
         linked_ingredient_hash: None,
