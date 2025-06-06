@@ -1,6 +1,6 @@
 ![GitHub License](https://img.shields.io/github/license/IntelLabs/atlas-cli)
-[![Crates.io](https://img.shields.io/crates/v/atlas-c2pa-lib.svg)](https://crates.io/crates/atlas-cli)
-[![Documentation](https://docs.rs/atlas-c2pa-lib/badge.svg)](https://docs.rs/atlas-cli)
+[![Crates.io](https://img.shields.io/crates/v/atlas-cli.svg)](https://crates.io/crates/atlas-cli)
+[![Documentation](https://docs.rs/atlas-cli/badge.svg)](https://docs.rs/atlas-cli)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/IntelLabs/atlas-cli/badge)](https://scorecard.dev/viewer/?uri=github.com/IntelLabs/atlas-cli)
 
 
