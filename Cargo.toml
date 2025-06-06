@@ -36,7 +36,7 @@ tdx_workload_attestation = { version = "0.1.0", default-features = false }
 # Core libraries
 base64 = "0.21"
 chrono = "0.4.41"  # For timestamp generation in mock attestation reports
-env_logger = "0.10"
+env_logger = "0.11"
 hex = "0.4"
 indicatif = "0.17"
 lazy_static = "1.4"
