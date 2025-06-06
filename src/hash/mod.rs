@@ -349,14 +349,21 @@ pub fn verify_hash_with_algorithm(
     algorithm: &HashAlgorithm,
 ) -> bool {
     let calculated_hash = calculate_hash_with_algorithm(data, algorithm);
-    let calculated_bytes = calculated_hash.as_bytes();
-    let expected_bytes = expected_hash.as_bytes();
+
+    let calculated_bytes = match hex::decode(calculated_hash) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
+    let expected_bytes = match hex::decode(expected_hash) {
+        Ok(b) => b,
+        Err(_) => return false,
+    };
 
     if calculated_bytes.len() != expected_bytes.len() {
         return false;
     }
 
-    calculated_bytes.ct_eq(expected_bytes).into()
+    calculated_bytes.ct_eq(&expected_bytes).into()
 }
 
 /// Detect hash algorithm based on hash length
