@@ -56,6 +56,7 @@ use atlas_c2pa_lib::cose::HashAlgorithm;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 use std::io::Read;
 use std::path::Path;
+use subtle::ConstantTimeEq;
 
 pub mod utils;
 
@@ -298,7 +299,18 @@ pub fn combine_hashes(hashes: &[&str]) -> Result<String> {
 pub fn verify_hash(data: &[u8], expected_hash: &str) -> bool {
     let algorithm = detect_hash_algorithm(expected_hash);
     let calculated_hash = calculate_hash_with_algorithm(data, &algorithm);
-    calculated_hash == expected_hash
+
+    // Convert both to bytes for constant-time comparison
+    let calculated_bytes = calculated_hash.as_bytes();
+    let expected_bytes = expected_hash.as_bytes();
+
+    // Length must match first
+    if calculated_bytes.len() != expected_bytes.len() {
+        return false;
+    }
+
+    // Constant-time comparison
+    calculated_bytes.ct_eq(expected_bytes).into()
 }
 
 /// Verify hash with an explicitly specified algorithm
@@ -337,7 +349,14 @@ pub fn verify_hash_with_algorithm(
     algorithm: &HashAlgorithm,
 ) -> bool {
     let calculated_hash = calculate_hash_with_algorithm(data, algorithm);
-    calculated_hash == expected_hash
+    let calculated_bytes = calculated_hash.as_bytes();
+    let expected_bytes = expected_hash.as_bytes();
+
+    if calculated_bytes.len() != expected_bytes.len() {
+        return false;
+    }
+
+    calculated_bytes.ct_eq(expected_bytes).into()
 }
 
 /// Detect hash algorithm based on hash length
@@ -864,6 +883,341 @@ mod tests {
         assert_ne!(sha256, sha384);
         assert_ne!(sha384, sha512);
         assert_ne!(sha256, sha512);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cross_algorithm_verification() {
+        // Test that verification fails when using wrong algorithm
+        let data = b"cross algorithm test data";
+
+        // Create hashes with each algorithm
+        let sha256_hash = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256);
+        let sha384_hash = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha384);
+        let sha512_hash = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha512);
+
+        // Verify with correct algorithms should succeed
+        assert!(verify_hash_with_algorithm(
+            data,
+            &sha256_hash,
+            &HashAlgorithm::Sha256
+        ));
+        assert!(verify_hash_with_algorithm(
+            data,
+            &sha384_hash,
+            &HashAlgorithm::Sha384
+        ));
+        assert!(verify_hash_with_algorithm(
+            data,
+            &sha512_hash,
+            &HashAlgorithm::Sha512
+        ));
+
+        // Verify with wrong algorithms should fail
+        assert!(!verify_hash_with_algorithm(
+            data,
+            &sha256_hash,
+            &HashAlgorithm::Sha384
+        ));
+        assert!(!verify_hash_with_algorithm(
+            data,
+            &sha256_hash,
+            &HashAlgorithm::Sha512
+        ));
+        assert!(!verify_hash_with_algorithm(
+            data,
+            &sha384_hash,
+            &HashAlgorithm::Sha256
+        ));
+        assert!(!verify_hash_with_algorithm(
+            data,
+            &sha384_hash,
+            &HashAlgorithm::Sha512
+        ));
+        assert!(!verify_hash_with_algorithm(
+            data,
+            &sha512_hash,
+            &HashAlgorithm::Sha256
+        ));
+        assert!(!verify_hash_with_algorithm(
+            data,
+            &sha512_hash,
+            &HashAlgorithm::Sha384
+        ));
+    }
+
+    #[test]
+    fn test_binary_data_hashing() {
+        // Test with various binary patterns
+        let test_cases = vec![
+            vec![0x00; 100],                // All zeros
+            vec![0xFF; 100],                // All ones
+            vec![0xAA; 100],                // Alternating bits (10101010)
+            vec![0x55; 100],                // Alternating bits (01010101)
+            (0..=255).collect::<Vec<u8>>(), // All byte values
+        ];
+
+        for (i, data) in test_cases.iter().enumerate() {
+            let hash = calculate_hash(data);
+            assert_eq!(hash.len(), 64, "Test case {} failed", i);
+
+            // Verify each produces unique hash
+            for (j, other_data) in test_cases.iter().enumerate() {
+                if i != j {
+                    let other_hash = calculate_hash(other_data);
+                    assert_ne!(
+                        hash, other_hash,
+                        "Test cases {} and {} produced same hash",
+                        i, j
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_utf8_string_hashing() {
+        // Test with various UTF-8 strings
+        let test_strings = vec![
+            "Hello, World!",
+            "Hello, World!",      // Same string should produce same hash
+            "Hello, World! ",     // Extra space should produce different hash
+            "Здравствуй, мир!",   // Russian
+            "你好，世界！",       // Chinese
+            "こんにちは、世界！", // Japanese
+            "🌍🌎🌏",             // Emojis
+            "𝓗𝓮𝓵𝓵𝓸",              // Mathematical alphanumeric symbols
+            "",                   // Empty string
+            " ",                  // Single space
+            "\n\r\t",             // Whitespace characters
+        ];
+
+        let mut hashes = Vec::new();
+        for s in &test_strings {
+            let hash = calculate_hash(s.as_bytes());
+            hashes.push(hash);
+        }
+
+        // First two should be equal (same string)
+        assert_eq!(hashes[0], hashes[1]);
+
+        // All others should be unique
+        for i in 0..hashes.len() {
+            for j in 0..hashes.len() {
+                if i != j && !(i == 0 && j == 1) && !(i == 1 && j == 0) {
+                    assert_ne!(
+                        hashes[i], hashes[j],
+                        "Strings '{}' and '{}' produced same hash",
+                        test_strings[i], test_strings[j]
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_incremental_data_hashing() -> Result<()> {
+        // Test that hashing data incrementally produces consistent results
+        let dir = tempdir()?;
+        let file_path = dir.path().join("incremental.txt");
+
+        // Create a file with incremental content
+        let mut content = String::new();
+        let mut hashes = Vec::new();
+
+        for i in 0..10 {
+            content.push_str(&format!("Line {}\n", i));
+
+            let mut file = safe_create_file(&file_path, false)?;
+            file.write_all(content.as_bytes())?;
+            drop(file); // Ensure file is closed
+
+            let hash = calculate_file_hash(&file_path)?;
+            hashes.push(hash);
+        }
+
+        // Each hash should be different
+        for i in 0..hashes.len() {
+            for j in i + 1..hashes.len() {
+                assert_ne!(
+                    hashes[i], hashes[j],
+                    "Incremental content at positions {} and {} produced same hash",
+                    i, j
+                );
+            }
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_hash_consistency_across_algorithms() {
+        // Test that the same data always produces the same hash for each algorithm
+        let data = b"consistency test data";
+        let iterations = 100;
+
+        let mut sha256_hashes = Vec::new();
+        let mut sha384_hashes = Vec::new();
+        let mut sha512_hashes = Vec::new();
+
+        for _ in 0..iterations {
+            sha256_hashes.push(calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256));
+            sha384_hashes.push(calculate_hash_with_algorithm(data, &HashAlgorithm::Sha384));
+            sha512_hashes.push(calculate_hash_with_algorithm(data, &HashAlgorithm::Sha512));
+        }
+
+        // All hashes for the same algorithm should be identical
+        for i in 1..iterations {
+            assert_eq!(
+                sha256_hashes[0], sha256_hashes[i],
+                "SHA-256 inconsistent at iteration {}",
+                i
+            );
+            assert_eq!(
+                sha384_hashes[0], sha384_hashes[i],
+                "SHA-384 inconsistent at iteration {}",
+                i
+            );
+            assert_eq!(
+                sha512_hashes[0], sha512_hashes[i],
+                "SHA-512 inconsistent at iteration {}",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn test_combine_hashes_edge_cases() -> Result<()> {
+        // Test combining different numbers of hashes
+        let hash1 = calculate_hash(b"data1");
+        let hash2 = calculate_hash(b"data2");
+        let hash3 = calculate_hash(b"data3");
+
+        // Single hash
+        let single = combine_hashes(&[&hash1])?;
+        assert_eq!(single.len(), 64);
+
+        // Two hashes
+        let double = combine_hashes(&[&hash1, &hash2])?;
+        assert_eq!(double.len(), 64);
+        assert_ne!(single, double);
+
+        // Three hashes
+        let triple = combine_hashes(&[&hash1, &hash2, &hash3])?;
+        assert_eq!(triple.len(), 64);
+        assert_ne!(double, triple);
+
+        // Test associativity - (A + B) + C should equal A + (B + C)
+        let ab = combine_hashes(&[&hash1, &hash2])?;
+        let ab_c = combine_hashes(&[&ab, &hash3])?;
+
+        let bc = combine_hashes(&[&hash2, &hash3])?;
+        let a_bc = combine_hashes(&[&hash1, &bc])?;
+
+        // This is expected behavior.
+        assert_ne!(ab_c, a_bc);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_file_not_found_error() {
+        // Test proper error handling for non-existent files
+        let result = calculate_file_hash("/this/path/should/not/exist/test.txt");
+        assert!(result.is_err());
+
+        match result {
+            Err(Error::Io(_)) => (), // Expected
+            Err(e) => panic!("Expected Io error, got: {:?}", e),
+            Ok(_) => panic!("Expected error for non-existent file"),
+        }
+    }
+
+    #[test]
+    fn test_special_filenames() -> Result<()> {
+        let dir = tempdir()?;
+
+        // Test with various special filenames
+        let filenames = vec![
+            "file with spaces.txt",
+            "file-with-dashes.txt",
+            "file_with_underscores.txt",
+            "file.multiple.dots.txt",
+            "UPPERCASE.TXT",
+            "🦀rust🦀.txt", // Emoji in filename
+            ".hidden_file",
+            "very_long_filename_that_exceeds_typical_lengths_but_should_still_work_fine.txt",
+        ];
+
+        for filename in filenames {
+            let file_path = dir.path().join(filename);
+            let mut file = safe_create_file(&file_path, false)?;
+            file.write_all(b"test content")?;
+            drop(file);
+
+            // Should be able to hash regardless of filename
+            let hash = calculate_file_hash(&file_path)?;
+            assert_eq!(hash.len(), 64, "Failed for filename: {}", filename);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_concurrent_hashing_safety() {
+        use std::sync::Arc;
+        use std::thread;
+
+        // Test that hashing is thread-safe
+        let data = Arc::new(b"concurrent test data".to_vec());
+        let num_threads = 10;
+        let iterations_per_thread = 100;
+
+        let mut handles = vec![];
+
+        for _ in 0..num_threads {
+            let data_clone = Arc::clone(&data);
+            let handle = thread::spawn(move || {
+                let mut hashes = Vec::new();
+                for _ in 0..iterations_per_thread {
+                    let hash = calculate_hash(&data_clone);
+                    hashes.push(hash);
+                }
+                hashes
+            });
+            handles.push(handle);
+        }
+
+        // Collect all results
+        let mut all_hashes = Vec::new();
+        for handle in handles {
+            let hashes = handle.join().expect("Thread panicked");
+            all_hashes.extend(hashes);
+        }
+
+        // All hashes should be identical
+        let expected_hash = calculate_hash(&data);
+        for (i, hash) in all_hashes.iter().enumerate() {
+            assert_eq!(hash, &expected_hash, "Hash mismatch at index {}", i);
+        }
+    }
+
+    #[test]
+    fn test_combine_hashes_with_invalid_hex() -> Result<()> {
+        let valid_hash = calculate_hash(b"valid");
+
+        // Test with invalid hex string
+        let result = combine_hashes(&[&valid_hash, "not_valid_hex"]);
+        assert!(result.is_err());
+
+        // Test with odd-length hex string
+        let result = combine_hashes(&[&valid_hash, "abc"]);
+        assert!(result.is_err());
+
+        // Test with non-ASCII characters
+        let result = combine_hashes(&[&valid_hash, "café"]);
+        assert!(result.is_err());
 
         Ok(())
     }

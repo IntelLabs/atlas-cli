@@ -140,6 +140,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha2",
+ "subtle",
  "tdx_workload_attestation",
  "tempfile",
  "thiserror 2.0.12",
