@@ -8,7 +8,7 @@ use tempfile::tempdir;
 fn test_calculate_hash() -> Result<()> {
     let data = b"test data";
     let hash = hash::calculate_hash(data);
-    assert_eq!(hash.len(), 64); // SHA-256 hash is 64 hex characters
+    assert_eq!(hash.len(), 96); // SHA-384 hash is 96 hex characters
     Ok(())
 }
 
@@ -22,7 +22,7 @@ fn test_calculate_file_hash() -> Result<()> {
     file.write_all(b"test data")?;
 
     let hash = hash::calculate_file_hash(&file_path)?;
-    assert_eq!(hash.len(), 64);
+    assert_eq!(hash.len(), 96);
 
     // Verify hash changes with content
     let mut file = safe_create_file(&file_path, false)?;
@@ -51,7 +51,7 @@ fn test_combine_hashes() -> Result<()> {
     let hash2 = hash::calculate_hash(b"data2");
 
     let combined = hash::combine_hashes(&[&hash1, &hash2])?;
-    assert_eq!(combined.len(), 64);
+    assert_eq!(combined.len(), 96);
 
     // Test order matters
     let combined2 = hash::combine_hashes(&[&hash2, &hash1])?;

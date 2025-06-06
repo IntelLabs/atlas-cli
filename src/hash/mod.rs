@@ -27,7 +27,7 @@
 //!
 //! let data = b"Hello, World!";
 //! let hash = calculate_hash(data);
-//! assert_eq!(hash.len(), 64); // SHA-256 produces 64 hex characters
+//! assert_eq!(hash.len(), 96); // SHA-384 produces 96 hex characters
 //! ```
 //!
 //! ### Hashing with specific algorithm
@@ -60,9 +60,9 @@ use subtle::ConstantTimeEq;
 
 pub mod utils;
 
-/// Calculate SHA-256 hash of the given data (default for backward compatibility)
+/// Calculate SHA-384 hash of the given data
 ///
-/// This function uses SHA-256 by default. For other algorithms, use
+/// This function uses SHA-384 by default. For other algorithms, use
 /// [`calculate_hash_with_algorithm`].
 ///
 /// # Arguments
@@ -71,7 +71,7 @@ pub mod utils;
 ///
 /// # Returns
 ///
-/// A hexadecimal string representation of the hash (64 characters for SHA-256)
+/// A hexadecimal string representation of the hash (96 characters for SHA-384)
 ///
 /// # Examples
 ///
@@ -81,8 +81,8 @@ pub mod utils;
 /// let data = b"Hello, World!";
 /// let hash = calculate_hash(data);
 ///
-/// // SHA-256 produces 64 character hex string
-/// assert_eq!(hash.len(), 64);
+/// // SHA-384 produces 96 character hex string
+/// assert_eq!(hash.len(), 96);
 ///
 /// // Same data produces same hash
 /// let hash2 = calculate_hash(data);
@@ -93,7 +93,7 @@ pub mod utils;
 /// assert_ne!(hash, hash3);
 /// ```
 pub fn calculate_hash(data: &[u8]) -> String {
-    calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256)
+    calculate_hash_with_algorithm(data, &HashAlgorithm::Sha384)
 }
 
 /// Calculate hash of data using the specified algorithm
@@ -142,7 +142,7 @@ pub fn calculate_hash_with_algorithm(data: &[u8], algorithm: &HashAlgorithm) -> 
     }
 }
 
-/// Calculate SHA-256 hash of a file (default for backward compatibility)
+/// Calculate SHA-256 hash of a file
 ///
 /// This function uses SHA-256 by default. For other algorithms, use
 /// [`calculate_file_hash_with_algorithm`].
@@ -153,7 +153,7 @@ pub fn calculate_hash_with_algorithm(data: &[u8], algorithm: &HashAlgorithm) -> 
 ///
 /// # Returns
 ///
-/// * `Ok(String)` - The hexadecimal hash string (64 characters for SHA-256)
+/// * `Ok(String)` - The hexadecimal hash string (64 characters for SHA-384)
 /// * `Err(Error)` - If the file cannot be read
 ///
 /// # Examples
@@ -165,14 +165,14 @@ pub fn calculate_hash_with_algorithm(data: &[u8], algorithm: &HashAlgorithm) -> 
 /// let path = Path::new("example.txt");
 /// match calculate_file_hash(&path) {
 ///     Ok(hash) => {
-///         assert_eq!(hash.len(), 64);
+///         assert_eq!(hash.len(), 96);
 ///         println!("File hash: {}", hash);
 ///     }
 ///     Err(e) => eprintln!("Error: {}", e),
 /// }
 /// ```
 pub fn calculate_file_hash(path: impl AsRef<Path>) -> Result<String> {
-    calculate_file_hash_with_algorithm(path, &HashAlgorithm::Sha256)
+    calculate_file_hash_with_algorithm(path, &HashAlgorithm::Sha384)
 }
 
 /// Calculate hash of a file using the specified algorithm
@@ -218,10 +218,9 @@ pub fn calculate_file_hash_with_algorithm(
     }
 }
 
-/// Combine multiple hashes into a single hash
 ///
 /// This function concatenates the decoded bytes of multiple hashes and produces
-/// a new SHA-256 hash. This is useful for creating a single hash that represents
+/// a new SHA-384 hash. This is useful for creating a single hash that represents
 /// multiple components.
 ///
 /// # Arguments
@@ -230,7 +229,7 @@ pub fn calculate_file_hash_with_algorithm(
 ///
 /// # Returns
 ///
-/// * `Ok(String)` - The combined hash (64 characters, SHA-256)
+/// * `Ok(String)` - The combined hash (96 characters, SHA-384)
 /// * `Err(Error)` - If any input hash is invalid hexadecimal
 ///
 /// # Examples
@@ -242,14 +241,14 @@ pub fn calculate_file_hash_with_algorithm(
 /// let hash2 = calculate_hash(b"data2");
 ///
 /// let combined = combine_hashes(&[&hash1, &hash2]).unwrap();
-/// assert_eq!(combined.len(), 64);
+/// assert_eq!(combined.len(), 96);
 ///
 /// // Order matters
 /// let combined_reversed = combine_hashes(&[&hash2, &hash1]).unwrap();
 /// assert_ne!(combined, combined_reversed);
 /// ```
 pub fn combine_hashes(hashes: &[&str]) -> Result<String> {
-    let mut hasher = Sha256::new();
+    let mut hasher = Sha384::new();
     for hash in hashes {
         let bytes = hex::decode(hash).map_err(Error::HexDecode)?;
         hasher.update(&bytes);
@@ -380,7 +379,7 @@ pub fn verify_hash_with_algorithm(
 /// - 64 characters → SHA-256
 /// - 96 characters → SHA-384
 /// - 128 characters → SHA-512
-/// - Other lengths → SHA-256 (default)
+/// - Other lengths → SHA-384 (default)
 ///
 /// # Examples
 ///
@@ -398,10 +397,10 @@ pub fn verify_hash_with_algorithm(
 /// ```
 pub fn detect_hash_algorithm(hash: &str) -> HashAlgorithm {
     match hash.len() {
-        64 => HashAlgorithm::Sha256,  // 256 bits = 32 bytes = 64 hex chars
-        96 => HashAlgorithm::Sha384,  // 384 bits = 48 bytes = 96 hex chars
-        128 => HashAlgorithm::Sha512, // 512 bits = 64 bytes = 128 hex chars
-        _ => HashAlgorithm::Sha256,   // Default
+        64 => HashAlgorithm::Sha256,
+        96 => HashAlgorithm::Sha384,
+        128 => HashAlgorithm::Sha512,
+        _ => HashAlgorithm::Sha384,
     }
 }
 
@@ -417,7 +416,7 @@ pub fn detect_hash_algorithm(hash: &str) -> HashAlgorithm {
 /// - "sha256" → 64
 /// - "sha384" → 96
 /// - "sha512" → 128
-/// - Other → 64 (default)
+/// - Other → 96 (default)
 ///
 /// # Examples
 ///
@@ -427,14 +426,14 @@ pub fn detect_hash_algorithm(hash: &str) -> HashAlgorithm {
 /// assert_eq!(get_hash_length("sha256"), 64);
 /// assert_eq!(get_hash_length("SHA384"), 96);
 /// assert_eq!(get_hash_length("sha512"), 128);
-/// assert_eq!(get_hash_length("unknown"), 64); // defaults to SHA-256
+/// assert_eq!(get_hash_length("unknown"), 96); // defaults to SHA-384
 /// ```
 pub fn get_hash_length(algorithm: &str) -> usize {
     match algorithm.to_lowercase().as_str() {
         "sha256" => 64,
         "sha384" => 96,
         "sha512" => 128,
-        _ => 64,
+        _ => 96,
     }
 }
 
@@ -527,9 +526,8 @@ mod tests {
     fn test_calculate_hash() {
         let data = b"test data";
         let hash = calculate_hash(data);
-        assert_eq!(hash.len(), 64); // SHA-256 hash is 64 hex characters
+        assert_eq!(hash.len(), 96);
     }
-
     #[test]
     fn test_calculate_hash_with_algorithms() -> Result<()> {
         let data = b"test data";
@@ -561,7 +559,7 @@ mod tests {
         file.write_all(b"test data")?;
 
         let hash = calculate_file_hash(&file_path)?;
-        assert_eq!(hash.len(), 64);
+        assert_eq!(hash.len(), 96); // Changed from 64 to 96
 
         // Verify hash changes with content
         let mut file = safe_create_file(&file_path, false)?;
@@ -664,10 +662,10 @@ mod tests {
             HashAlgorithm::Sha512
         ));
 
-        // Unknown length defaults to SHA-256
+        // Unknown length defaults to SHA-384
         assert!(matches!(
             detect_hash_algorithm("short"),
-            HashAlgorithm::Sha256
+            HashAlgorithm::Sha384
         ));
     }
 
@@ -677,7 +675,7 @@ mod tests {
         let hash2 = calculate_hash(b"data2");
 
         let combined = combine_hashes(&[&hash1, &hash2])?;
-        assert_eq!(combined.len(), 64);
+        assert_eq!(combined.len(), 96);
 
         // Test order matters
         let combined2 = combine_hashes(&[&hash2, &hash1])?;
@@ -714,25 +712,25 @@ mod tests {
         let hash = calculate_hash(data);
 
         // Empty string should produce a valid hash with expected length
-        assert_eq!(hash.len(), 64);
-        // Known SHA-256 hash of empty string
+        assert_eq!(hash.len(), 96);
+        // Known SHA-384 hash of empty string
         assert_eq!(
             hash,
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"
         );
     }
 
     #[test]
     fn test_hash_known_values() {
-        // Test vectors for SHA-256 with explicit type annotation
+        // Test vectors for SHA-384
         let test_vectors: [(&[u8], &str); 2] = [
             (
                 b"abc",
-                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+                "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7",
             ),
             (
                 b"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
-                "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
+                "3391fdddfc8dc7393707a65b1b4709397cf8b1d162af05abfe8f450de5f36bc6b0455a8520bc4e6f5fe95b1fe3c8452b",
             ),
         ];
 
@@ -777,7 +775,7 @@ mod tests {
         assert_eq!(get_hash_length("SHA256"), 64); // case insensitive
         assert_eq!(get_hash_length("sha384"), 96);
         assert_eq!(get_hash_length("sha512"), 128);
-        assert_eq!(get_hash_length("unknown"), 64); // defaults to SHA-256
+        assert_eq!(get_hash_length("unknown"), 96); // defaults to SHA-384
     }
 
     #[test]
@@ -801,17 +799,17 @@ mod tests {
 
         // Test combining single hash
         let result = combine_hashes(&[&hash1])?;
-        assert_eq!(result.len(), 64);
+        assert_eq!(result.len(), 96); // Changed from 64 to 96
 
         // Test combining empty list of hashes
         match combine_hashes(&[]) {
             Ok(hash) => {
                 // If it succeeds, verify it's a valid hash
-                assert_eq!(hash.len(), 64);
-                // The hash of empty input should be the SHA-256 of empty data
+                assert_eq!(hash.len(), 96); // Changed from 64 to 96
+                // The hash of empty input should be the SHA-384 of empty data
                 assert_eq!(
                     hash,
-                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                    "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"
                 );
             }
             Err(e) => {
@@ -967,7 +965,7 @@ mod tests {
 
         for (i, data) in test_cases.iter().enumerate() {
             let hash = calculate_hash(data);
-            assert_eq!(hash.len(), 64, "Test case {} failed", i);
+            assert_eq!(hash.len(), 96, "Test case {} failed", i);
 
             // Verify each produces unique hash
             for (j, other_data) in test_cases.iter().enumerate() {
@@ -1103,16 +1101,16 @@ mod tests {
 
         // Single hash
         let single = combine_hashes(&[&hash1])?;
-        assert_eq!(single.len(), 64);
+        assert_eq!(single.len(), 96);
 
         // Two hashes
         let double = combine_hashes(&[&hash1, &hash2])?;
-        assert_eq!(double.len(), 64);
+        assert_eq!(double.len(), 96);
         assert_ne!(single, double);
 
         // Three hashes
         let triple = combine_hashes(&[&hash1, &hash2, &hash3])?;
-        assert_eq!(triple.len(), 64);
+        assert_eq!(triple.len(), 96);
         assert_ne!(double, triple);
 
         // Test associativity - (A + B) + C should equal A + (B + C)
@@ -1165,7 +1163,7 @@ mod tests {
 
             // Should be able to hash regardless of filename
             let hash = calculate_file_hash(&file_path)?;
-            assert_eq!(hash.len(), 64, "Failed for filename: {}", filename);
+            assert_eq!(hash.len(), 96, "Failed for filename: {}", filename);
         }
 
         Ok(())
