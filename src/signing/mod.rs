@@ -84,11 +84,26 @@ pub fn sign_data(data: &[u8], private_key: &SecurePrivateKey) -> Result<Vec<u8>>
     sign_data_with_algorithm(data, private_key, &HashAlgorithm::Sha384)
 }
 
-/// Verify signature with a public key
+// Verify signature with a public key using default SHA-384 algorithm
 pub fn verify_signature(data: &[u8], signature: &[u8], public_key: &PKey<Public>) -> Result<bool> {
-    let mut verifier =
-        openssl::sign::Verifier::new(openssl::hash::MessageDigest::sha256(), public_key)
-            .map_err(|e| Error::Signing(e.to_string()))?;
+    verify_signature_with_algorithm(data, signature, public_key, &HashAlgorithm::Sha384)
+}
+
+/// Verify signature with a public key using the specified algorithm
+pub fn verify_signature_with_algorithm(
+    data: &[u8],
+    signature: &[u8],
+    public_key: &PKey<Public>,
+    algorithm: &HashAlgorithm,
+) -> Result<bool> {
+    let message_digest = match algorithm {
+        HashAlgorithm::Sha256 => MessageDigest::sha256(),
+        HashAlgorithm::Sha384 => MessageDigest::sha384(),
+        HashAlgorithm::Sha512 => MessageDigest::sha512(),
+    };
+
+    let mut verifier = openssl::sign::Verifier::new(message_digest, public_key)
+        .map_err(|e| Error::Signing(e.to_string()))?;
 
     verifier
         .update(data)
@@ -98,6 +113,7 @@ pub fn verify_signature(data: &[u8], signature: &[u8], public_key: &PKey<Public>
         .verify(signature)
         .map_err(|e| Error::Signing(e.to_string()))
 }
+
 pub fn pkey_to_secure(pkey: PKey<Private>) -> Result<SecurePrivateKey> {
     // Export to PEM format then re-import as SecurePrivateKey
     let pem_data = pkey
@@ -349,4 +365,72 @@ TEST_KEY_DATA_THAT_SHOULD_BE_ZEROIZED
 
         Ok(())
     }
+    /*
+    #[test]
+    fn test_sign_and_verify_with_algorithms() -> Result<()> {
+        // Test that signing and verification work correctly with matching algorithms
+        let (secure_key, _dir) = generate_temp_key()?;
+
+        // Get the public key for verification
+        let public_key = secure_key
+            .as_pkey()
+            .public_key_to_pem()
+            .map_err(|e| Error::Signing(e.to_string()))?;
+        let public_key =
+            PKey::public_key_from_pem(&public_key).map_err(|e| Error::Signing(e.to_string()))?;
+
+        let data = b"test data for sign and verify";
+
+        // Test each algorithm
+        for algo in &[
+            HashAlgorithm::Sha256,
+            HashAlgorithm::Sha384,
+            HashAlgorithm::Sha512,
+        ] {
+            // Sign with the algorithm
+            let signature = sign_data_with_algorithm(data, &secure_key, algo)?;
+
+            // Verify with the same algorithm - should succeed
+            let valid = verify_signature_with_algorithm(data, &signature, &public_key, algo)?;
+            assert!(
+                valid,
+                "Verification should succeed with matching algorithm {:?}",
+                algo
+            );
+
+            // Verify with different algorithms - should fail
+            for wrong_algo in &[
+                HashAlgorithm::Sha256,
+                HashAlgorithm::Sha384,
+                HashAlgorithm::Sha512,
+            ] {
+                if wrong_algo != algo {
+                    let invalid =
+                        verify_signature_with_algorithm(data, &signature, &public_key, wrong_algo)?;
+                    assert!(
+                        !invalid,
+                        "Verification should fail with mismatched algorithms {:?} != {:?}",
+                        algo, wrong_algo
+                    );
+                }
+            }
+        }
+
+        // Test default functions (should use SHA-384)
+        let signature = sign_data(data, &secure_key)?;
+        let valid = verify_signature(data, &signature, &public_key)?;
+        assert!(valid, "Default sign/verify should work together");
+
+        // Verify that default uses SHA-384
+        let valid_384 =
+            verify_signature_with_algorithm(data, &signature, &public_key, &HashAlgorithm::Sha384)?;
+        assert!(valid_384, "Default should be SHA-384");
+
+        let invalid_256 =
+            verify_signature_with_algorithm(data, &signature, &public_key, &HashAlgorithm::Sha256)?;
+        assert!(!invalid_256, "Default should not be SHA-256");
+
+        Ok(())
+    }
+        */
 }
