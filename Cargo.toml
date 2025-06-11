@@ -1,6 +1,6 @@
 [package]
 name = "atlas-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Machine Learning Lifecycle & Transparency Manager - Create and verify manifests for ML models and datasets"
 documentation = "https://docs.rs/atlas-cli"
@@ -28,7 +28,7 @@ yaml = []
 with-tdx = ["tdx_workload_attestation/host-gcp-tdx"]
 
 [dependencies]
-atlas-c2pa-lib = { version = "0.1.0" }
+atlas-c2pa-lib = { version = "0.1.1" }
 
 # TDX
 tdx_workload_attestation = { version = "0.1.0", default-features = false }
@@ -47,6 +47,7 @@ thiserror = "2.0.12"
 time = { version = "0.3", features = ["serde"] }
 uuid = { version = "1.17", features = ["v4"] }
 walkdir = "2.4"
+zeroize = { version = "1.8", features = ["derive"] }
 
 # CLI and async/runtime
 clap = { version = "4.4", features = ["derive"] }

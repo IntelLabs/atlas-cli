@@ -1,4 +1,3 @@
-// src/tests/manifest.rs
 use super::common::MockStorageBackend;
 use crate::error::Result;
 use crate::hash::calculate_file_hash;
