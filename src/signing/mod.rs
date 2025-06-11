@@ -365,7 +365,6 @@ TEST_KEY_DATA_THAT_SHOULD_BE_ZEROIZED
 
         Ok(())
     }
-    /*
     #[test]
     fn test_sign_and_verify_with_algorithms() -> Result<()> {
         // Test that signing and verification work correctly with matching algorithms
@@ -432,5 +431,4 @@ TEST_KEY_DATA_THAT_SHOULD_BE_ZEROIZED
 
         Ok(())
     }
-        */
 }
