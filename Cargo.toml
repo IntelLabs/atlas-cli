@@ -47,6 +47,7 @@ thiserror = "2.0.12"
 time = { version = "0.3", features = ["serde"] }
 uuid = { version = "1.17", features = ["v4"] }
 walkdir = "2.4"
+zeroize = { version = "1.8", features = ["derive"] }
 
 # CLI and async/runtime
 clap = { version = "4.4", features = ["derive"] }
