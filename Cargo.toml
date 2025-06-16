@@ -59,7 +59,7 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 
 # HTTP client
-reqwest = { version = "0.12.19", features = ["blocking", "json"] }
+reqwest = { version = "0.12.20", features = ["blocking", "json"] }
 subtle = "2.6.1"
 
 [dev-dependencies]
