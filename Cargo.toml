@@ -49,7 +49,7 @@ uuid = { version = "1.17", features = ["v4"] }
 walkdir = "2.4"
 
 # CLI and async/runtime
-clap = { version = "4.4", features = ["derive"] }
+clap = { version = "4.5", features = ["derive"] }
 tokio = "1.45.1"
 
 # Serialization
