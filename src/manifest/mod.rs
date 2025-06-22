@@ -1,3 +1,4 @@
+use crate::cc_attestation::mock::MockReport;
 use crate::error::{Error, Result};
 use crate::hash;
 use crate::storage::traits::StorageBackend;
@@ -989,6 +990,14 @@ fn extract_assertion_details(
             serde_json::json!({
                 "reason": do_not_train.reason,
                 "enforced": do_not_train.enforced,
+            })
+        }
+        atlas_c2pa_lib::assertion::Assertion::CustomAssertion(custom) => {
+            let r_str = custom.data.as_str().unwrap();
+            let r: MockReport = serde_json::from_str(r_str).unwrap();
+            serde_json::json!({
+                "label": custom.label,
+                "data": r,
             })
         }
         _ => serde_json::json!({"type": "Unknown"}),

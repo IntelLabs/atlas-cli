@@ -66,6 +66,7 @@ atlas-cli software create \
     --author-org="Your Organization" \
     --author-name="Your Name" \
     --description="PyTorch training script for MNIST CNN model" \
+    --with-tdx \
     --key=private.pem \
     --storage-type=database \
     --storage-url=$STORAGE_URL \
@@ -149,6 +150,7 @@ atlas-cli software create \
     --author-org="Your Organization" \
     --author-name="Your Name" \
     --description="PyTorch evaluation script for MNIST CNN model" \
+    --with-tdx \
     --key=private.pem \
     --storage-type=database \
     --storage-url=$STORAGE_URL \

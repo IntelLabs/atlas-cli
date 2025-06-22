@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use tdx_workload_attestation::error::Result;
@@ -5,6 +6,16 @@ use tdx_workload_attestation::provider::AttestationProvider;
 
 pub struct MockAttestationProvider {
     platform: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MockReport {
+    report_type: String,
+    platform: String,
+    timestamp: String,
+    status: String,
+    version: String,
+    message: String,
 }
 
 impl MockAttestationProvider {
@@ -19,14 +30,12 @@ impl AttestationProvider for MockAttestationProvider {
     fn get_attestation_report(&self) -> Result<String> {
         // Create a mock attestation report with platform info
         let mock_report = json!({
-            "type": "mock_attestation",
+            "report_type": "mock_attestation",
             "platform": self.platform,
             "timestamp": chrono::Utc::now().to_rfc3339(),
-            "mock_data": {
-                "version": "1.0",
-                "status": "simulated",
-                "message": "This is a mock attestation report for non-Linux or unsupported platforms"
-            }
+            "version": "1.0",
+            "status": "simulated",
+            "message": "This is a mock attestation report for non-Linux or unsupported platforms"
         });
 
         // Serialize to JSON string
