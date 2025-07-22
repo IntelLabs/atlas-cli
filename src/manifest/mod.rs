@@ -1,9 +1,9 @@
 use crate::error::{Error, Result};
+use crate::hash;
 use crate::storage::traits::StorageBackend;
 use atlas_c2pa_lib::cose::HashAlgorithm;
 use atlas_c2pa_lib::cross_reference::CrossReference;
 use serde::{Deserialize, Serialize};
-use sha2::Digest;
 use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
@@ -33,35 +33,38 @@ pub use utils::{
     determine_manifest_type, manifest_type_to_str, manifest_type_to_string, parse_manifest_type,
 };
 
-/// Validate that a hash string is in the correct format
+/// Validate that a hash string is in the correct format.
+/// Supported formats are SHA-256, SHA-384, or SHA-512.
 ///
 /// # Examples
 ///
 /// ```
-/// use atlas_cli::manifest::validate_manifest_hash;
+/// use atlas_cli::manifest::validate_hash_format;
 ///
-/// // Valid 64-character hex string
-/// let valid_hash = "a".repeat(64);
-/// assert!(validate_manifest_hash(&valid_hash).is_ok());
+/// // Valid 96-character hex string
+/// let valid_hash = "a".repeat(96);
+/// assert!(validate_hash_format(&valid_hash).is_ok());
 ///
 /// // Invalid: wrong length
 /// let short_hash = "abc123";
-/// assert!(validate_manifest_hash(&short_hash).is_err());
+/// assert!(validate_hash_format(&short_hash).is_err());
 ///
 /// // Invalid: non-hex characters
-/// let invalid_chars = "g".repeat(64);
-/// assert!(validate_manifest_hash(&invalid_chars).is_err());
+/// let invalid_chars = "g".repeat(96);
+/// assert!(validate_hash_format(&invalid_chars).is_err());
 /// ```
-pub fn validate_manifest_hash(hash: &str) -> Result<()> {
+pub fn validate_hash_format(hash: &str) -> Result<()> {
     if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err(crate::error::Error::Validation(
             "Invalid hash format".to_string(),
         ));
     }
-    if hash.len() != 64 {
-        return Err(crate::error::Error::Validation(
-            "Invalid hash length".to_string(),
-        ));
+    // Check if the hash has the expected length for SHA-256, SHA-384 or SHA-512
+    if !is_supported_c2pa_hash_length(hash.len()) {
+        return Err(Error::Validation(format!(
+            "Expected 64, 96 or 128 characters for SHA-256, SHA-384, or SHA-512 got {}",
+            hash.len()
+        )));
     }
     Ok(())
 }
@@ -96,19 +99,14 @@ pub fn link_manifests(
 
     // Detect the hash algorithm used in the source manifest
     let algorithm = if let Some(first_ingredient) = source_manifest.ingredients.first() {
-        match first_ingredient.data.alg.as_str() {
-            "sha256" => HashAlgorithm::Sha256,
-            "sha384" => HashAlgorithm::Sha384,
-            "sha512" => HashAlgorithm::Sha512,
-            _ => HashAlgorithm::Sha256, // Default
-        }
+        hash::parse_algorithm(first_ingredient.data.alg.as_str())?
     } else {
         // If no ingredients, check if source manifest has any cross-references
         if let Some(first_cross_ref) = source_manifest.cross_references.first() {
             // Detect algorithm from existing cross-reference hash length
-            crate::hash::detect_hash_algorithm(&first_cross_ref.manifest_hash) // This already returns HashAlgorithm
+            hash::detect_hash_algorithm(&first_cross_ref.manifest_hash) // This already returns HashAlgorithm
         } else {
-            HashAlgorithm::Sha256 // Default if no ingredients or cross-references
+            HashAlgorithm::Sha384 // Default if no ingredients or cross-references
         }
     };
 
@@ -124,8 +122,7 @@ pub fn link_manifests(
         // Check if hash matches (if it doesn't, this could indicate a conflict)
         let target_json = serde_json::to_string(&target_manifest)
             .map_err(|e| Error::Serialization(e.to_string()))?;
-        let target_hash =
-            crate::hash::calculate_hash_with_algorithm(target_json.as_bytes(), &algorithm);
+        let target_hash = hash::calculate_hash_with_algorithm(target_json.as_bytes(), &algorithm);
 
         if existing_ref.manifest_hash != target_hash {
             // Handle conflict by creating a versioned reference
@@ -147,8 +144,7 @@ pub fn link_manifests(
     // Create a hash of the target manifest using the detected algorithm
     let target_json =
         serde_json::to_string(&target_manifest).map_err(|e| Error::Serialization(e.to_string()))?;
-    let target_hash =
-        crate::hash::calculate_hash_with_algorithm(target_json.as_bytes(), &algorithm);
+    let target_hash = hash::calculate_hash_with_algorithm(target_json.as_bytes(), &algorithm);
 
     // Convert IDs to proper C2PA URNs if they're not already
     let target_urn = ensure_c2pa_urn(target_id);
@@ -226,7 +222,7 @@ fn create_versioned_link(
     // Create a hash of the target manifest using the specified algorithm
     let target_json =
         serde_json::to_string(&target_manifest).map_err(|e| Error::Serialization(e.to_string()))?;
-    let target_hash = crate::hash::calculate_hash_with_algorithm(target_json.as_bytes(), algorithm);
+    let target_hash = hash::calculate_hash_with_algorithm(target_json.as_bytes(), algorithm);
 
     // Create a cross-reference with the versioned ID
     let cross_reference = CrossReference::new(versioned_id.clone(), target_hash);
@@ -462,7 +458,10 @@ pub fn validate_linked_manifests(
                     }
                 };
 
-                let calculated_hash = hex::encode(sha2::Sha256::digest(ref_json.as_bytes()));
+                let algorithm = hash::detect_hash_algorithm(&cross_ref.manifest_hash);
+
+                let calculated_hash =
+                    hash::calculate_hash_with_algorithm(ref_json.as_bytes(), &algorithm);
 
                 // Compare calculated hash with stored hash
                 if calculated_hash == cross_ref.manifest_hash {
@@ -512,22 +511,10 @@ pub fn validate_linked_manifests(
     }
 }
 
-/// Validate hash format according to C2PA spec (64-character hex string for SHA-256)
-fn validate_hash_format(hash: &str) -> Result<()> {
-    // Check if the hash is a valid hex string
-    if !hash.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err(Error::Validation("Must be a valid hex string".to_string()));
-    }
-
-    // Check if the hash has the expected length for SHA-256 (64 hex chars)
-    if hash.len() != 64 {
-        return Err(Error::Validation(format!(
-            "Expected 64 characters for SHA-256, got {}",
-            hash.len()
-        )));
-    }
-
-    Ok(())
+/// Check whether a given hash (hex-encoded) length matches one of the
+/// C2PA-supported algorithms (must be one of SHA-256, SHA-384, SHA-512).
+fn is_supported_c2pa_hash_length(hash_len: usize) -> bool {
+    matches!(hash_len, 64 | 96 | 128)
 }
 
 /// Helper function to verify a single manifest link
@@ -551,7 +538,9 @@ pub fn verify_manifest_link(
             let target_manifest = storage.retrieve_manifest(target_id)?;
             let target_json = serde_json::to_string(&target_manifest)
                 .map_err(|e| Error::Serialization(e.to_string()))?;
-            let calculated_hash = hex::encode(sha2::Sha256::digest(target_json.as_bytes()));
+            let algorithm = hash::detect_hash_algorithm(&reference.manifest_hash);
+            let calculated_hash =
+                hash::calculate_hash_with_algorithm(target_json.as_bytes(), &algorithm);
 
             if calculated_hash == reference.manifest_hash {
                 println!("Manifest link verified: {source_id} -> {target_id}");
@@ -875,6 +864,7 @@ fn build_provenance_graph(
                 atlas_c2pa_lib::assertion::Assertion::CreativeWork(_) => "CreativeWork",
                 atlas_c2pa_lib::assertion::Assertion::Action(_) => "Action",
                 atlas_c2pa_lib::assertion::Assertion::DoNotTrain(_) => "DoNotTrain",
+                atlas_c2pa_lib::assertion::Assertion::CustomAssertion(_) => "TrustedHardware",
                 _ => "Other",
             };
             assertions.push(AssertionInfo {

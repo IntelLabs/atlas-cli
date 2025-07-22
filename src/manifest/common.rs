@@ -2,7 +2,6 @@ use crate::cc_attestation;
 use crate::error::{Error, Result};
 use crate::hash;
 
-use crate::hash::utils::calculate_file_hash;
 use crate::manifest::config::ManifestCreationConfig;
 use crate::manifest::utils::{
     determine_dataset_type, determine_format, determine_model_type, determine_software_type,
@@ -22,7 +21,6 @@ use atlas_c2pa_lib::manifest::Manifest;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use serde_json::to_string_pretty;
-use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 use tdx_workload_attestation::get_platform_name;
 use time::OffsetDateTime;
@@ -249,7 +247,7 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
                             .map_err(|e| Error::Serialization(e.to_string()))?;
 
                         // Create a hash of the linked manifest
-                        let linked_hash = hex::encode(Sha256::digest(linked_json.as_bytes()));
+                        let linked_hash = hash::calculate_hash(linked_json.as_bytes());
 
                         // Create a cross-reference
                         let cross_ref = CrossReference {
@@ -393,7 +391,7 @@ pub fn verify_manifest(id: &str, storage: &dyn StorageBackend) -> Result<()> {
             }
         } else {
             // For non-file URLs, try direct hash verification
-            match calculate_file_hash(PathBuf::from(&ingredient.data.url)) {
+            match hash::calculate_file_hash(PathBuf::from(&ingredient.data.url)) {
                 Ok(calculated_hash) => {
                     if calculated_hash != ingredient.data.hash {
                         return Err(Error::Validation(format!(
@@ -424,7 +422,9 @@ pub fn verify_manifest(id: &str, storage: &dyn StorageBackend) -> Result<()> {
             let linked_manifest = storage.retrieve_manifest(&cross_ref.manifest_url)?;
             let manifest_json = serde_json::to_string(&linked_manifest)
                 .map_err(|e| Error::Serialization(e.to_string()))?;
-            let calculated_hash = hex::encode(Sha256::digest(manifest_json.as_bytes()));
+            let algorithm = hash::detect_hash_algorithm(&cross_ref.manifest_hash);
+            let calculated_hash =
+                hash::calculate_hash_with_algorithm(manifest_json.as_bytes(), &algorithm);
 
             if calculated_hash != cross_ref.manifest_hash {
                 return Err(Error::Validation(format!(
@@ -693,7 +693,7 @@ pub fn create_ingredient_from_path(
         name,
         asset_type,
         format,
-        &HashAlgorithm::Sha256,
+        &HashAlgorithm::Sha384,
     )
 }
 
