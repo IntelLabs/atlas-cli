@@ -115,7 +115,6 @@ pub fn verify_signature_with_algorithm(
         .map_err(|e| Error::Signing(e.to_string()))
 }
 
-
 pub fn pkey_to_secure(pkey: PKey<Private>) -> Result<SecurePrivateKey> {
     // Export to PEM format then re-import as SecurePrivateKey
     let pem_data = pkey
