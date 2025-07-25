@@ -157,6 +157,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
 
 	    match format.as_str() {
 		"standalone" => manifest::create_model_manifest(config),
+		"oms" => manifest::common::create_oms_manifest(config),
 		_ => return Err(Error::InitializationError("Unsupported output format".to_string())),
 	    }
         }

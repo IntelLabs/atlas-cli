@@ -1,7 +1,8 @@
 use crate::cc_attestation;
 use crate::error::{Error, Result};
 use crate::hash;
-
+use crate::in_toto;
+use crate::in_toto::dsse::Envelope;
 use crate::manifest::config::ManifestCreationConfig;
 use crate::manifest::utils::{
     determine_dataset_type, determine_format, determine_model_type, determine_software_type,
@@ -21,13 +22,14 @@ use atlas_c2pa_lib::ingredient::{Ingredient, IngredientData};
 use atlas_c2pa_lib::manifest::Manifest;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use serde_json::to_string_pretty;
+use serde_json::{to_vec, to_string_pretty};
 use std::path::{Path, PathBuf};
 use tdx_workload_attestation::get_platform_name;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 const CLAIM_GENERATOR: &str = "atlas-cli:0.1.1";
+const DSSE_PAYLOAD_TYPE: &str = "application/vnd.in-toto+json";
 
 /// Asset type enum to distinguish between models, datasets, software, and evaluations
 pub enum AssetKind {
@@ -209,22 +211,7 @@ fn generate_c2pa_assertions(config: &ManifestCreationConfig, asset_kind: AssetKi
     Ok(assertions)
 }
 
-fn generate_c2pa_claim(config: &ManifestCreationConfig, asset_kind: AssetKind, ingredients: &Vec<Ingredient>) -> Result<ClaimV2> {
-    let assertions = generate_c2pa_assertions(config, asset_kind)?;
-
-    // Create claim
-    Ok(ClaimV2 {
-        instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
-        ingredients: ingredients.clone(),
-        created_assertions: assertions,
-        claim_generator_info: CLAIM_GENERATOR.to_string(),
-        signature: None,
-        created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
-    })
-}
-
-/// Creates a manifest for a model, dataset, software, or evaluation
-pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) -> Result<()> {
+fn generate_c2pa_claim(config: &ManifestCreationConfig, asset_kind: AssetKind) -> Result<ClaimV2> {
     // Create ingredients using the helper function
     let mut ingredients = Vec::new();
     for (path, ingredient_name) in config.paths.iter().zip(config.ingredient_names.iter()) {
@@ -248,7 +235,22 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
         ingredients.push(ingredient);
     }
 
-    let mut claim = generate_c2pa_claim(&config, asset_kind, &ingredients)?;
+    let assertions = generate_c2pa_assertions(config, asset_kind)?;
+
+    // Create claim
+    Ok(ClaimV2 {
+        instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
+        ingredients: ingredients.clone(),
+        created_assertions: assertions,
+        claim_generator_info: CLAIM_GENERATOR.to_string(),
+        signature: None,
+        created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
+    })
+}
+
+/// Creates a manifest for a model, dataset, software, or evaluation
+pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) -> Result<()> {
+    let mut claim = generate_c2pa_claim(&config, asset_kind)?;
 
     // Sign if key is provided
     if let Some(key_file) = &config.key_path {
@@ -265,8 +267,8 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
         claim_generator: CLAIM_GENERATOR.to_string(),
         title: config.name.clone(),
         instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
-        ingredients,
         claim: claim.clone(),
+	ingredients: vec![],
         created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
         cross_references: vec![],
         claim_v2: Some(claim),
@@ -334,6 +336,91 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
         if !config.print {
             let id = storage.store_manifest(&manifest)?;
             println!("Manifest stored successfully with ID: {id}");
+        }
+    }
+
+    Ok(())
+}
+
+/// Creates an OpenSSF Model Signing (OMS) compliant manifest for a model
+pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
+    let claim = generate_c2pa_claim(&config, AssetKind::Model)?;
+
+    // Create the manifest
+    let mut manifest = Manifest {
+        claim_generator: CLAIM_GENERATOR.to_string(),
+        title: config.name.clone(),
+        instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
+        claim: claim.clone(),
+	ingredients: vec![],
+        created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
+        cross_references: vec![],
+        claim_v2: Some(claim),
+        is_active: true,
+    };
+
+    if let Some(manifest_ids) = &config.linked_manifests {
+        if let Some(storage_backend) = &config.storage {
+            for linked_id in manifest_ids {
+                match storage_backend.retrieve_manifest(linked_id) {
+                    Ok(linked_manifest) => {
+                        // Create a JSON representation of the linked manifest
+                        let linked_json = serde_json::to_string(&linked_manifest)
+                            .map_err(|e| Error::Serialization(e.to_string()))?;
+
+                        // Create a hash of the linked manifest
+                        let linked_hash = hash::calculate_hash(linked_json.as_bytes());
+
+                        // Create a cross-reference
+                        let cross_ref = CrossReference {
+                            manifest_url: linked_id.clone(),
+                            manifest_hash: linked_hash,
+                            media_type: Some("application/json".to_string()),
+                        };
+
+                        // Add the cross-reference to the manifest
+                        manifest.cross_references.push(cross_ref);
+
+                        println!("Added link to manifest: {linked_id}");
+                    }
+                    Err(e) => {
+                        println!("Warning: Could not link to manifest {linked_id}: {e}");
+                    }
+                }
+            }
+        } else {
+            println!("Warning: Cannot link manifests without a storage backend");
+        }
+    }
+
+    // Sign the DSSE
+    let manifest_json =
+        to_vec(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
+    let signer = in_toto::DsseSigner::new(&manifest_json, DSSE_PAYLOAD_TYPE.to_string(), config.key_path.expect("no signing key provided").to_path_buf(), config.hash_alg);
+    let signature = signer.sign()?;
+
+    let mut envelope = Envelope::new(&manifest_json, DSSE_PAYLOAD_TYPE.to_string());
+    envelope.add_signature(signature, "".to_string()); // keyid is optional
+
+    // Output manifest if requested
+    if config.print || config.storage.is_none() {
+        match config.output_encoding.to_lowercase().as_str() {
+            "json" => {
+                let envelope_json =
+                    to_string_pretty(&envelope).map_err(|e| Error::Serialization(e.to_string()))?;
+                println!("{envelope_json}");
+            }
+            "cbor" => {
+                let envelope_cbor = serde_cbor::to_vec(&envelope)
+                    .map_err(|e| Error::Serialization(e.to_string()))?;
+                println!("{}", hex::encode(&envelope_cbor));
+            }
+            _ => {
+                return Err(Error::Validation(format!(
+                    "Invalid output encoding '{}'. Valid options are: json, cbor",
+                    config.output_encoding
+                )));
+            }
         }
     }
 

@@ -149,7 +149,7 @@ pub enum ModelCommands {
         #[arg(long = "encoding", default_value = "json")]
         encoding: String,
 
-	/// Format (standalone c2pa or in-toto wrapped)
+	/// Format (standalone c2pa or oms)
         #[arg(long = "format", default_value = "standalone")]
         format: String,
 
