@@ -103,16 +103,17 @@ pub enum DatasetCommands {
 
 #[derive(Debug, Subcommand)]
 pub enum ModelCommands {
-    /// Create a new model manifest
+    /// Create a new signed model manifest compliant with OpenSSF Model Signing (OMS) specification
     Create {
-        /// Path to model file
+        /// Paths to the model ingredient files
         #[arg(long = "paths", num_args = 1.., value_delimiter = ',')]
         paths: Vec<PathBuf>,
 
         /// Names for each ingredient (comma-separated)
         #[arg(long = "ingredient-names", num_args = 1.., value_delimiter = ',')]
         ingredient_names: Vec<String>,
-        /// Model name
+
+	/// Model name
         #[arg(long = "name")]
         name: String,
 
@@ -144,8 +145,12 @@ pub enum ModelCommands {
         #[arg(long = "print")]
         print: bool,
 
-        /// Output format (json or cbor)
-        #[arg(long = "format", default_value = "json")]
+        /// Encoding (json or cbor)
+        #[arg(long = "encoding", default_value = "json")]
+        encoding: String,
+
+	/// Format (standalone c2pa or in-toto wrapped)
+        #[arg(long = "format", default_value = "standalone")]
         format: String,
 
         /// Storage backend (local or rekor)

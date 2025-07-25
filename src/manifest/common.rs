@@ -7,6 +7,7 @@ use crate::manifest::utils::{
     determine_dataset_type, determine_format, determine_model_type, determine_software_type,
 };
 use crate::signing;
+use crate::signing::metadata_signer::MetadataSigner;
 use crate::storage::traits::{ArtifactLocation, StorageBackend};
 use atlas_c2pa_lib::assertion::{
     Action, ActionAssertion, Assertion, Author, CreativeWorkAssertion, CustomAssertion,
@@ -26,6 +27,8 @@ use tdx_workload_attestation::get_platform_name;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+const CLAIM_GENERATOR: &str = "atlas-cli:0.1.1";
+
 /// Asset type enum to distinguish between models, datasets, software, and evaluations
 pub enum AssetKind {
     Model,
@@ -34,31 +37,36 @@ pub enum AssetKind {
     Evaluation,
 }
 
-/// Creates a manifest for a model, dataset, software, or evaluation
-pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) -> Result<()> {
-    // Create ingredients using the helper function
-    let mut ingredients = Vec::new();
-    for (path, ingredient_name) in config.paths.iter().zip(config.ingredient_names.iter()) {
-        // Determine asset type and format based on asset kind
-        let format = determine_format(path)?;
-        let asset_type = match asset_kind {
-            AssetKind::Model => determine_model_type(path)?,
-            AssetKind::Dataset => determine_dataset_type(path)?,
-            AssetKind::Software => determine_software_type(path)?,
-            AssetKind::Evaluation => AssetType::Dataset, // Use Dataset type for evaluation results
-        };
+pub struct C2paManifestSigner {
+    claim: ClaimV2,
+    key_path: PathBuf,
+    hash_alg: HashAlgorithm,
+}
 
-        // Use the helper function to create the ingredient
-        let ingredient = create_ingredient_from_path_with_algorithm(
-            path,
-            ingredient_name,
-            asset_type,
-            format,
-            &config.hash_alg,
-        )?;
-        ingredients.push(ingredient);
+impl C2paManifestSigner {
+    pub fn new(claim: &ClaimV2, key_path: PathBuf, hash_alg: HashAlgorithm) -> Self {
+	Self {
+	    claim: claim.clone(),
+	    key_path: key_path,
+	    hash_alg: hash_alg,
+	}
     }
+}
 
+impl MetadataSigner for C2paManifestSigner {
+    fn sign(&self) -> Result<Vec<u8>> {
+	let private_key = signing::load_private_key(&self.key_path)?;
+
+        // Serialize claim to CBOR for signing
+        let claim_cbor =
+            serde_cbor::to_vec(&self.claim).map_err(|e| Error::Serialization(e.to_string()))?;
+
+        // Use the signing module with the specified algorithm
+        signing::sign_data_with_algorithm(&claim_cbor, &private_key, &self.hash_alg)
+    }
+}
+
+fn generate_c2pa_assertions(config: &ManifestCreationConfig, asset_kind: AssetKind) -> Result<Vec<Assertion>> {
     // Determine asset-specific values
     let (creative_type, digital_source_type) = match asset_kind {
         AssetKind::Model => (
@@ -107,7 +115,7 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
                     AssetKind::Evaluation => "c2pa.evaluation".to_string(),
                     _ => "c2pa.created".to_string(),
                 },
-                software_agent: Some("c2pa-cli".to_string()),
+                software_agent: Some(CLAIM_GENERATOR.to_string()),
                 parameters: Some(match asset_kind {
                     AssetKind::Evaluation => {
                         // Merge evaluation parameters with standard parameters
@@ -198,35 +206,63 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
         assertions.push(Assertion::CustomAssertion(cc_assertion));
     }
 
+    Ok(assertions)
+}
+
+fn generate_c2pa_claim(config: &ManifestCreationConfig, asset_kind: AssetKind, ingredients: &Vec<Ingredient>) -> Result<ClaimV2> {
+    let assertions = generate_c2pa_assertions(config, asset_kind)?;
+
     // Create claim
-    let mut claim = ClaimV2 {
+    Ok(ClaimV2 {
         instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
         ingredients: ingredients.clone(),
         created_assertions: assertions,
-        claim_generator_info: "c2pa-cli".to_string(),
+        claim_generator_info: CLAIM_GENERATOR.to_string(),
         signature: None,
         created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
-    };
+    })
+}
+
+/// Creates a manifest for a model, dataset, software, or evaluation
+pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) -> Result<()> {
+    // Create ingredients using the helper function
+    let mut ingredients = Vec::new();
+    for (path, ingredient_name) in config.paths.iter().zip(config.ingredient_names.iter()) {
+        // Determine asset type and format based on asset kind
+        let format = determine_format(path)?;
+        let asset_type = match asset_kind {
+            AssetKind::Model => determine_model_type(path)?,
+            AssetKind::Dataset => determine_dataset_type(path)?,
+            AssetKind::Software => determine_software_type(path)?,
+            AssetKind::Evaluation => AssetType::Dataset, // Use Dataset type for evaluation results
+        };
+
+        // Use the helper function to create the ingredient
+        let ingredient = create_ingredient_from_path_with_algorithm(
+            path,
+            ingredient_name,
+            asset_type,
+            format,
+            &config.hash_alg,
+        )?;
+        ingredients.push(ingredient);
+    }
+
+    let mut claim = generate_c2pa_claim(&config, asset_kind, &ingredients)?;
 
     // Sign if key is provided
     if let Some(key_file) = &config.key_path {
-        let private_key = signing::load_private_key(key_file)?;
+	let signer = C2paManifestSigner::new(&claim, key_file.to_path_buf(), config.hash_alg);
 
-        // Serialize claim to CBOR for signing
-        let claim_cbor =
-            serde_cbor::to_vec(&claim).map_err(|e| Error::Serialization(e.to_string()))?;
-
-        // Use the signing module with the specified algorithm
-        let signature =
-            signing::sign_data_with_algorithm(&claim_cbor, &private_key, &config.hash_alg)?;
-
-        // Add signature to claim
+	let signature = signer.sign()?;
+	
+	// Add signature to claim
         claim.signature = Some(STANDARD.encode(&signature));
     }
 
     // Create the manifest
     let mut manifest = Manifest {
-        claim_generator: "c2pa-cli/0.1.0".to_string(),
+        claim_generator: CLAIM_GENERATOR.to_string(),
         title: config.name.clone(),
         instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
         ingredients,
@@ -273,7 +309,7 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
 
     // Output manifest if requested
     if config.print || config.storage.is_none() {
-        match config.output_format.to_lowercase().as_str() {
+        match config.output_encoding.to_lowercase().as_str() {
             "json" => {
                 let manifest_json =
                     to_string_pretty(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
@@ -286,8 +322,8 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
             }
             _ => {
                 return Err(Error::Validation(format!(
-                    "Invalid output format '{}'. Valid options are: json, cbor",
-                    config.output_format
+                    "Invalid output encoding '{}'. Valid options are: json, cbor",
+                    config.output_encoding
                 )));
             }
         }

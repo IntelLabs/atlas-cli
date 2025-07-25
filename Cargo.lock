@@ -124,6 +124,7 @@ dependencies = [
  "clap",
  "env_logger",
  "hex",
+ "in_toto_attestation",
  "indicatif",
  "lazy_static",
  "log",
@@ -985,6 +986,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "in_toto_attestation"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "protobuf",
+ "protobuf-codegen",
+ "protobuf-json-mapping",
+ "regex",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "indexmap"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1328,6 +1341,17 @@ dependencies = [
  "protobuf-parse",
  "regex",
  "tempfile",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "protobuf-json-mapping"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0d6e4be637b310d8a5c02fa195243328e2d97fa7df1127a27281ef1187fcb1d"
+dependencies = [
+ "protobuf",
+ "protobuf-support",
  "thiserror 1.0.69",
 ]
 

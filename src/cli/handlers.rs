@@ -59,7 +59,7 @@ pub fn handle_dataset_command(cmd: DatasetCommands) -> Result<()> {
                 linked_manifests,
                 storage,
                 print,
-                output_format: format,
+                output_encoding: format,
                 key_path: key,
                 hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: with_tdx,
@@ -114,6 +114,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
             storage_type,
             storage_url,
             print,
+	    encoding,
             format,
             key,
             hash_alg,
@@ -145,7 +146,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
                 linked_manifests,
                 storage,
                 print,
-                output_format: format,
+		output_encoding: encoding,
                 key_path: key,
                 hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: with_tdx,
@@ -154,7 +155,10 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
                 custom_fields: None,
             };
 
-            manifest::create_model_manifest(config)
+	    match format.as_str() {
+		"standalone" => manifest::create_model_manifest(config),
+		_ => return Err(Error::InitializationError("Unsupported output format".to_string())),
+	    }
         }
         ModelCommands::List {
             storage_type,
@@ -343,7 +347,7 @@ pub fn handle_evaluation_command(cmd: EvaluationCommands) -> Result<()> {
                 linked_manifests: None, // Will be populated by create_manifest
                 storage,
                 print,
-                output_format: format,
+                output_encoding: format,
                 key_path: key,
                 hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: false,
@@ -459,7 +463,7 @@ pub fn handle_software_command(cmd: SoftwareCommands) -> Result<()> {
                 linked_manifests,
                 storage,
                 print,
-                output_format: format,
+                output_encoding: format,
                 key_path: key,
                 hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: with_tdx,
