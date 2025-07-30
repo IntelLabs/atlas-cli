@@ -4,10 +4,16 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use log::{debug, error, info};
 use mongodb::{Client, Database};
-use ring::digest::{Context, SHA256};
 use ring::signature::Ed25519KeyPair;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+// Import merkle tree modules from local modules
+mod merkle_tree;
+mod hash;
+
+use merkle_tree::{MerkleTree, LogLeaf, InclusionProof, ConsistencyProof};
+use hash::hash_sha384;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum ContentFormat {
@@ -70,12 +76,10 @@ pub fn detect_content_type(req: &HttpRequest) -> ContentFormat {
     ContentFormat::JSON
 }
 
-// Hash binary data
+// Hash binary data using the hash module (SHA384 by default)
 pub fn hash_binary(data: &[u8]) -> String {
-    let mut context = Context::new(&SHA256);
-    context.update(data);
-    let digest = context.finish();
-    general_purpose::STANDARD.encode(digest.as_ref())
+    let hash_bytes = hash_sha384(data);
+    general_purpose::STANDARD.encode(&hash_bytes)
 }
 
 // Sign binary data
@@ -84,201 +88,62 @@ pub fn sign_data(key_pair: &Ed25519KeyPair, data: &[u8]) -> String {
     general_purpose::STANDARD.encode(signature.as_ref())
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct LogLeaf {
-    manifest_id: String,
-    hash: String,
-    sequence_number: u64,
-    timestamp: DateTime<Utc>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct MerkleTree {
-    leaves: Vec<LogLeaf>,
-    root_hash: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-struct InclusionProof {
-    manifest_id: String,
-    leaf_hash: String,
-    merkle_path: Vec<String>,
-    root_hash: String,
-}
-
-impl MerkleTree {
-    fn new() -> Self {
-        MerkleTree {
-            leaves: Vec::new(),
-            root_hash: None,
-        }
-    }
-
-    fn add_leaf(&mut self, leaf: LogLeaf) {
-        self.leaves.push(leaf);
-        self.update_root_hash();
-    }
-
-    fn update_root_hash(&mut self) {
-        if self.leaves.is_empty() {
-            self.root_hash = None;
-            return;
-        }
-
-        let mut hashes: Vec<String> = self.leaves.iter().map(|leaf| leaf.hash.clone()).collect();
-
-        while hashes.len() > 1 {
-            let mut new_hashes = Vec::new();
-
-            for chunk in hashes.chunks(2) {
-                if chunk.len() == 2 {
-                    let combined = format!("{}{}", chunk[0], chunk[1]);
-                    new_hashes.push(hash_string(&combined));
-                } else {
-                    new_hashes.push(chunk[0].clone());
-                }
-            }
-
-            hashes = new_hashes;
-        }
-
-        self.root_hash = Some(hashes[0].clone());
-    }
-
-    fn generate_inclusion_proof(&self, manifest_id: &str) -> Option<InclusionProof> {
-        if self.leaves.is_empty() || self.root_hash.is_none() {
-            return None;
-        }
-
-        let position = self
-            .leaves
-            .iter()
-            .position(|leaf| leaf.manifest_id == manifest_id)?;
-        let leaf_hash = self.leaves[position].hash.clone();
-        let mut merkle_path = Vec::new();
-        let mut current_pos = position;
-
-        // Calculate the merkle path going up the tree
-        let mut level_size = self.leaves.len();
-        let mut level_hashes: Vec<String> =
-            self.leaves.iter().map(|leaf| leaf.hash.clone()).collect();
-
-        while level_size > 1 {
-            // Find sibling position
-            let sibling_pos = if current_pos % 2 == 0 {
-                current_pos + 1 // Right sibling
-            } else {
-                current_pos - 1 // Left sibling
-            };
-
-            // Add sibling hash to the proof path if it exists
-            if sibling_pos < level_size {
-                merkle_path.push(level_hashes[sibling_pos].clone());
-            }
-
-            // Move to the parent level
-            current_pos /= 2;
-
-            // Calculate the parent level hashes
-            let mut new_level_hashes = Vec::new();
-            for i in (0..level_size).step_by(2) {
-                if i + 1 < level_size {
-                    // If we have a pair, hash them together
-                    let combined = format!("{}{}", level_hashes[i], level_hashes[i + 1]);
-                    new_level_hashes.push(hash_string(&combined));
-                } else {
-                    // If we have an odd node at the end, it's carried up without changes
-                    new_level_hashes.push(level_hashes[i].clone());
-                }
-            }
-
-            level_hashes = new_level_hashes;
-            level_size = level_hashes.len();
-        }
-
-        Some(InclusionProof {
-            manifest_id: manifest_id.to_string(),
-            leaf_hash,
-            merkle_path,
-            root_hash: self.root_hash.clone().unwrap(),
-        })
-    }
-
-    fn verify_inclusion_proof(&self, proof: &InclusionProof) -> bool {
-        // Start with the leaf hash
-        let mut current_hash = proof.leaf_hash.clone();
-
-        // Get the position of the leaf in the tree (if it exists)
-        if let Some(position) = self
-            .leaves
-            .iter()
-            .position(|leaf| leaf.manifest_id == proof.manifest_id)
-        {
-            // Calculate sibling positions and combine hashes according to position
-            let mut level_pos = position;
-
-            for sibling_hash in &proof.merkle_path {
-                // Determine if the current node is left or right in its pair
-                let is_left = level_pos % 2 == 0;
-
-                // Combine hashes in the correct order based on position
-                if is_left {
-                    // If we're the left node, combine: current + sibling
-                    let combined = format!("{}{}", current_hash, sibling_hash);
-                    current_hash = hash_string(&combined);
-                } else {
-                    // If we're the right node, combine: sibling + current
-                    let combined = format!("{}{}", sibling_hash, current_hash);
-                    current_hash = hash_string(&combined);
-                }
-
-                // Move to parent level
-                level_pos /= 2;
-            }
-
-            // Final hash should match the root hash
-            return current_hash == proof.root_hash;
-        }
-
-        false
-    }
-}
-
-fn hash_string(data: &str) -> String {
-    let mut context = Context::new(&SHA256);
-    context.update(data.as_bytes());
-    let digest = context.finish();
-    general_purpose::STANDARD.encode(digest.as_ref())
+// Validate manifest ID format
+fn is_valid_manifest_id(id: &str) -> bool {
+    // Allow alphanumeric, hyphens, underscores, and dots
+    // Limit length to prevent abuse
+    id.len() <= 256 && 
+    id.len() > 0 &&
+    id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
 }
 
 // Store manifest with content type support
 async fn store_manifest(
     state: web::Data<AppState>,
     req: HttpRequest,
-    bytes: Bytes, // Accept raw bytes instead of JSON
+    bytes: Bytes,
     path: web::Path<String>,
     query: web::Query<ManifestQuery>,
 ) -> HttpResponse {
+    // Validate input size
+    const MAX_MANIFEST_SIZE: usize = 10 * 1024 * 1024; // 10MB TODO: check if we even need 10MB
+    if bytes.len() > MAX_MANIFEST_SIZE {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Manifest too large",
+            "max_size": MAX_MANIFEST_SIZE
+        }));
+    }
+
+    // Validate manifest_id format
+    let manifest_id = path.to_string();
+    if !is_valid_manifest_id(&manifest_id) {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Invalid manifest ID format",
+            "allowed": "alphanumeric, hyphens, underscores, dots; max 256 chars"
+        }));
+    }
+
     let collection = state.db.collection::<ManifestEntry>("manifests");
     let manifest_type_param = &query.manifest_type;
 
     debug!(
         "Received manifest with ID: {}, manifest_type param: {:?}",
-        &*path, manifest_type_param
+        &manifest_id, manifest_type_param
     );
 
     // Detect content format
     let content_format = detect_content_type(&req);
 
     // Create hash and signature from raw content
-    let hash = hash_binary(&bytes);
-    let signature = sign_data(&state.key_pair, &hash.as_bytes());
+    let content_hash = hash_binary(&bytes);
+    let signature = sign_data(&state.key_pair, &content_hash.as_bytes());
 
     // Get next sequence number
+    // The sequence number provides a monotonically increasing index for each manifest,
+    // ensuring append-only behavior and enabling efficient range queries and consistency proofs
     let sequence_count = collection.count_documents(None, None).await.unwrap_or(0);
     let sequence_number = sequence_count + 1;
 
-    let manifest_id = path.to_string();
     let now = Utc::now();
 
     // Default manifest type from query parameter or "unknown"
@@ -298,7 +163,7 @@ async fn store_manifest(
         manifest_binary: None,
         created_at: now,
         sequence_number: sequence_number as u64,
-        hash: hash.clone(), // Clone the hash so wt can be used later
+        hash: content_hash.clone(),
         signature,
     };
 
@@ -372,25 +237,25 @@ async fn store_manifest(
         }
     }
 
-    match collection.insert_one(entry, None).await {
+    match collection.insert_one(&entry, None).await {
         Ok(result) => {
             info!(
                 "Successfully stored manifest with ID: {}",
                 result.inserted_id
             );
 
-            // Add to Merkle Tree
-            let leaf = LogLeaf {
-                manifest_id: manifest_id,
-                hash,
-                sequence_number: sequence_number as u64,
-                timestamp: now,
-            };
+            // Create a LogLeaf with all necessary data
+            let leaf = LogLeaf::new(
+                content_hash,
+                manifest_id.clone(),
+                sequence_number as u64,
+                now,
+            );
 
             // Update the Merkle tree
             {
                 let mut tree = state.merkle_tree.write();
-                tree.add_leaf(leaf.clone());
+                tree.add_leaf(leaf);
 
                 // Persist the updated Merkle tree to the database
                 if let Err(e) = persist_merkle_tree(&state.db, &tree).await {
@@ -398,63 +263,78 @@ async fn store_manifest(
                 }
             }
 
-            HttpResponse::Created().json(result.inserted_id)
+            HttpResponse::Created().json(serde_json::json!({
+                "id": result.inserted_id,
+                "manifest_id": manifest_id,
+                "sequence_number": sequence_number,
+                "hash": entry.hash,
+                "signature": entry.signature,
+            }))
         }
         Err(e) => {
             error!("Failed to store manifest: {:?}", e);
-            HttpResponse::InternalServerError().body(e.to_string())
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "error": "Failed to store manifest",
+                "details": e.to_string()
+            }))
         }
     }
 }
+
 async fn persist_merkle_tree(
     db: &Database,
     tree: &MerkleTree,
 ) -> Result<(), mongodb::error::Error> {
-    let collection = db.collection::<MerkleTree>("merkle_tree");
+    let collection = db.collection::<serde_json::Value>("merkle_tree_state");
 
-    // Clear existing tree
+    // Clear existing tree state
     collection.delete_many(mongodb::bson::doc! {}, None).await?;
 
-    // Insert new tree
-    collection.insert_one(tree, None).await?;
+    // Store the current tree state (leaves and metadata)
+    let tree_state = serde_json::json!({
+        "leaves": tree.leaves(),
+        "tree_size": tree.size(),
+        "root_hash": tree.root_hash(),
+        "updated_at": Utc::now(),
+    });
 
+    collection.insert_one(tree_state, None).await?;
     Ok(())
 }
 
 async fn load_merkle_tree(db: &Database) -> MerkleTree {
-    let collection = db.collection::<MerkleTree>("merkle_tree");
+    let collection = db.collection::<serde_json::Value>("merkle_tree_state");
 
     match collection.find_one(None, None).await {
-        Ok(Some(tree)) => tree,
-        _ => {
-            // If no tree exists or error occurs, create a new one
-            let tree = MerkleTree::new();
+        Ok(Some(state)) => {
+            if let Ok(leaves) = serde_json::from_value::<Vec<LogLeaf>>(state["leaves"].clone()) {
+                return MerkleTree::from_leaves(leaves);
+            }
+        }
+        _ => {}
+    }
 
-            // Attempt to rebuild from existing manifests
-            let manifests_collection = db.collection::<ManifestEntry>("manifests");
-            if let Ok(cursor) = manifests_collection.find(None, None).await {
-                if let Ok(manifests) =
-                    futures::stream::TryStreamExt::try_collect::<Vec<_>>(cursor).await
-                {
-                    let mut new_tree = MerkleTree::new();
+    // If no tree exists or error occurs, rebuild from manifests
+    let manifests_collection = db.collection::<ManifestEntry>("manifests");
+    if let Ok(cursor) = manifests_collection.find(None, None).await {
+        if let Ok(manifests) = futures::stream::TryStreamExt::try_collect::<Vec<_>>(cursor).await {
+            let mut tree = MerkleTree::new();
 
-                    for manifest in manifests {
-                        let leaf = LogLeaf {
-                            manifest_id: manifest.manifest_id,
-                            hash: manifest.hash,
-                            sequence_number: manifest.sequence_number,
-                            timestamp: manifest.created_at,
-                        };
-                        new_tree.add_leaf(leaf);
-                    }
-
-                    return new_tree;
-                }
+            for manifest in manifests {
+                let leaf = LogLeaf::new(
+                    manifest.hash,
+                    manifest.manifest_id,
+                    manifest.sequence_number,
+                    manifest.created_at,
+                );
+                tree.add_leaf(leaf);
             }
 
-            tree
+            return tree;
         }
     }
+
+    MerkleTree::new()
 }
 
 // List manifests with pagination
@@ -464,7 +344,7 @@ async fn list_manifests(state: web::Data<AppState>, query: web::Query<ListQuery>
     let limit = query.limit.unwrap_or(100) as i64;
     let skip = query.skip.unwrap_or(0) as u64;
 
-    // Build filter document based on query parameters see documentation
+    // Build filter document based on query parameters
     let mut filter = mongodb::bson::Document::new();
 
     if let Some(manifest_type) = &query.manifest_type {
@@ -590,7 +470,7 @@ async fn get_manifest(
                         }
                     }
                 }
-                _ => {} // default to JSON response it maybe naive
+                _ => {} // default to JSON response
             }
 
             // Default: return as JSON
@@ -611,21 +491,31 @@ async fn get_manifest(
 async fn get_inclusion_proof(state: web::Data<AppState>, path: web::Path<String>) -> HttpResponse {
     let manifest_id = path.into_inner();
 
+    // Validate manifest_id
+    if !is_valid_manifest_id(&manifest_id) {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Invalid manifest ID format"
+        }));
+    }
+
     let tree = state.merkle_tree.read();
     match tree.generate_inclusion_proof(&manifest_id) {
         Some(proof) => HttpResponse::Ok().json(proof),
-        None => HttpResponse::NotFound()
-            .body(format!("No proof available for manifest: {}", manifest_id)),
+        None => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "No proof available",
+            "manifest_id": manifest_id,
+            "reason": "Manifest not found in tree"
+        }))
     }
 }
 
 // Get latest Merkle root
 async fn get_merkle_root(state: web::Data<AppState>) -> HttpResponse {
     let tree = state.merkle_tree.read();
-    match &tree.root_hash {
+    match tree.root_hash() {
         Some(root) => HttpResponse::Ok().json(serde_json::json!({
             "root_hash": root,
-            "tree_size": tree.leaves.len()
+            "tree_size": tree.size()
         })),
         None => HttpResponse::NotFound().body("No Merkle root available yet"),
     }
@@ -640,8 +530,117 @@ async fn verify_proof(
     let is_valid = tree.verify_inclusion_proof(&proof);
 
     HttpResponse::Ok().json(serde_json::json!({
-        "valid": is_valid
+        "valid": is_valid,
+        "manifest_id": proof.manifest_id,
+        "proof_description": proof.describe()
     }))
+}
+
+// Request structure for consistency proof
+#[derive(Debug, Deserialize)]
+struct ConsistencyProofRequest {
+    old_size: usize,
+    new_size: usize,
+}
+
+// Get consistency proof between two tree sizes
+async fn get_consistency_proof(
+    state: web::Data<AppState>,
+    query: web::Query<ConsistencyProofRequest>,
+) -> HttpResponse {
+    let tree = state.merkle_tree.read();
+    
+    // Validate sizes
+    if query.old_size == 0 || query.new_size == 0 {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Tree sizes must be greater than 0"
+        }));
+    }
+    
+    if query.old_size > query.new_size {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Old size must be less than or equal to new size"
+        }));
+    }
+    
+    match tree.generate_consistency_proof(query.old_size, query.new_size) {
+        Some(proof) => HttpResponse::Ok().json(serde_json::json!({
+            "proof": proof,
+            "description": proof.describe()
+        })),
+        None => HttpResponse::NotFound().json(serde_json::json!({
+            "error": "Cannot generate consistency proof",
+            "old_size": query.old_size,
+            "new_size": query.new_size,
+            "current_tree_size": tree.size()
+        }))
+    }
+}
+
+// Verify a consistency proof
+async fn verify_consistency_proof(
+    state: web::Data<AppState>,
+    proof: web::Json<ConsistencyProof>,
+) -> HttpResponse {
+    let tree = state.merkle_tree.read();
+    
+    let is_valid = tree.verify_consistency_proof(
+        proof.old_size,
+        proof.new_size,
+        &proof.old_root,
+        &proof.new_root,
+        &proof.proof_hashes,
+    );
+    
+    HttpResponse::Ok().json(serde_json::json!({
+        "valid": is_valid,
+        "old_size": proof.old_size,
+        "new_size": proof.new_size,
+        "proof_elements": proof.proof_hashes.len(),
+        "description": proof.describe()
+    }))
+}
+
+// Get tree statistics
+async fn get_tree_stats(state: web::Data<AppState>) -> HttpResponse {
+    let tree = state.merkle_tree.read();
+    
+    HttpResponse::Ok().json(serde_json::json!({
+        "current_size": tree.size(),
+        "root_hash": tree.root_hash(),
+        "timestamp": Utc::now(),
+    }))
+}
+
+// Get historical root for specific tree sizes
+async fn get_historical_root(
+    state: web::Data<AppState>,
+    path: web::Path<usize>,
+) -> HttpResponse {
+    let tree_size = path.into_inner();
+    let tree = state.merkle_tree.read();
+    
+    if tree_size == 0 || tree_size > tree.size() {
+        return HttpResponse::BadRequest().json(serde_json::json!({
+            "error": "Invalid tree size",
+            "requested_size": tree_size,
+            "current_size": tree.size()
+        }));
+    }
+    
+    // Use the tree's method to compute historical root
+    let root_hash = tree.compute_root_for_size(tree_size);
+    
+    match root_hash {
+        Some(root) => HttpResponse::Ok().json(serde_json::json!({
+            "tree_size": tree_size,
+            "root_hash": root,
+            "current_size": tree.size()
+        })),
+        None => HttpResponse::InternalServerError().json(serde_json::json!({
+            "error": "Failed to compute historical root"
+        }))
+    }
 }
 
 #[actix_web::main]
@@ -705,13 +704,20 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(state.clone())
-            .app_data(web::PayloadConfig::new(10 * 1024 * 1024)) // It max 10MB
+            .app_data(web::PayloadConfig::new(10 * 1024 * 1024)) // Max 10MB
+            // Manifest routes
             .route("/manifests", web::get().to(list_manifests))
             .route("/manifests/{id}", web::post().to(store_manifest))
             .route("/manifests/{id}", web::get().to(get_manifest))
             .route("/manifests/{id}/proof", web::get().to(get_inclusion_proof))
+            // Merkle tree routes
             .route("/merkle/root", web::get().to(get_merkle_root))
             .route("/merkle/verify", web::post().to(verify_proof))
+            .route("/merkle/stats", web::get().to(get_tree_stats))
+            .route("/merkle/consistency", web::get().to(get_consistency_proof))
+            .route("/merkle/consistency/verify", web::post().to(verify_consistency_proof))
+            .route("/merkle/root/{size}", web::get().to(get_historical_root))
+            // Type-specific routes
             .route(
                 "/types/{manifest_type}/manifests",
                 web::get().to(list_manifests_by_type),

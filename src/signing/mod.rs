@@ -85,7 +85,6 @@ pub fn sign_data(data: &[u8], private_key: &SecurePrivateKey) -> Result<Vec<u8>>
 }
 
 // Verify signature with a public key using default SHA-384 algorithm
-// Verify signature with a public key using default SHA-384 algorithm
 pub fn verify_signature(data: &[u8], signature: &[u8], public_key: &PKey<Public>) -> Result<bool> {
     verify_signature_with_algorithm(data, signature, public_key, &HashAlgorithm::Sha384)
 }
