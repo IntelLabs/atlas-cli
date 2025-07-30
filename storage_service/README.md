@@ -219,19 +219,6 @@ openssl genpkey -algorithm Ed25519 -out transparency_log_key.pem
 - Default limit is 10MB
 - Adjust `MAX_MANIFEST_SIZE` in `main.rs` if needed
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Ensure all tests pass
-6. Submit a pull request
-
-## License
-
-[Your License Here]
-
 ## Acknowledgments
 
 - [C2PA](https://c2pa.org/) - Content Authenticity Initiative
