@@ -57,7 +57,7 @@ cd storage_service && docker-compose build && docker-compose up -d && cd ..
 ## Running the Example
 
 You can launch the demo using the provided bash script, and progress through the
-steps by pressing any key when prompted:
+demo by pressing any key to proceed at each step:
 
 ``` bash
 ./collect_mnist_provenance.sh

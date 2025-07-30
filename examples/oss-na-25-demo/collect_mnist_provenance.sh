@@ -1,5 +1,5 @@
 #!/bin/bash
-# MNIST Provenance Collection Script
+# MNIST Demo Provenance Collection Script
 # This script runs a demo MNIST workflow (no data prep or training) and collects
 # provenance data
 
@@ -58,7 +58,7 @@ echo -e "\n=== STEP 2: Generate Provenance for Model Training Artifacts ==="
 
 read -s -r -p "Create training script manifest..."
 atlas-cli software create \
-    --paths=train.py \
+    --paths=../mnist/train.py \
     --ingredient-names="MNIST Training Script" \
     --name="MNIST CNN Training Implementation" \
     --software-type="script" \
@@ -74,6 +74,7 @@ atlas-cli software create \
 TRAINING_SCRIPT_ID=$(extract_id training_script_output.txt)
 echo "Training Script ID: $TRAINING_SCRIPT_ID"
 
+touch classifier.onnx
 read -s -r -p "Create model manifest..."
 atlas-cli model create \
     --paths=classifier.onnx \
@@ -142,7 +143,7 @@ TEST_DATASET_ID=$(extract_id test_dataset_output.txt)
 echo "Test Dataset ID: $TEST_DATASET_ID"
 
 atlas-cli software create \
-    --paths=eval.py \
+    --paths=../mnist/eval.py \
     --ingredient-names="MNIST Evaluation Script" \
     --name="MNIST Model Evaluation Implementation" \
     --software-type="script" \
@@ -158,6 +159,7 @@ atlas-cli software create \
 EVAL_SCRIPT_ID=$(extract_id eval_script_output.txt)
 echo "Evaluation Script ID: $EVAL_SCRIPT_ID"
 
+touch eval_results.json
 echo "Creating evaluation results manifest linked to model..."
 atlas-cli evaluation create \
     --path=eval_results.json \
@@ -225,4 +227,4 @@ cat mnist_provenance.json | jq '.'
 
 read -s -r -p "Finish demo"
 echo -e "\n"
-rm -f *_output.txt *.pem mnist_provenance.json
+rm -f *_output.txt *.pem classifier.onnx eval_results.json mnist_provenance.json
