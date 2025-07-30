@@ -1,5 +1,5 @@
-use actix_web::{App, HttpRequest, HttpResponse, HttpServer, http::header, web};
-use base64::{Engine as _, engine::general_purpose};
+use actix_web::{http::header, web, App, HttpRequest, HttpResponse, HttpServer};
+use base64::{engine::general_purpose, Engine as _};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use log::{debug, error, info};
@@ -9,11 +9,11 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 // Import merkle tree modules from local modules
-mod merkle_tree;
 mod hash;
+mod merkle_tree;
 
-use merkle_tree::{MerkleTree, LogLeaf, InclusionProof, ConsistencyProof};
 use hash::hash_sha384;
+use merkle_tree::{ConsistencyProof, InclusionProof, LogLeaf, MerkleTree};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum ContentFormat {
@@ -92,9 +92,11 @@ pub fn sign_data(key_pair: &Ed25519KeyPair, data: &[u8]) -> String {
 fn is_valid_manifest_id(id: &str) -> bool {
     // Allow alphanumeric, hyphens, underscores, and dots
     // Limit length to prevent abuse
-    id.len() <= 256 && 
-    id.len() > 0 &&
-    id.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+    id.len() <= 256
+        && id.len() > 0
+        && id
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
 }
 
 // Store manifest with content type support
@@ -505,7 +507,7 @@ async fn get_inclusion_proof(state: web::Data<AppState>, path: web::Path<String>
             "error": "No proof available",
             "manifest_id": manifest_id,
             "reason": "Manifest not found in tree"
-        }))
+        })),
     }
 }
 
@@ -549,20 +551,20 @@ async fn get_consistency_proof(
     query: web::Query<ConsistencyProofRequest>,
 ) -> HttpResponse {
     let tree = state.merkle_tree.read();
-    
+
     // Validate sizes
     if query.old_size == 0 || query.new_size == 0 {
         return HttpResponse::BadRequest().json(serde_json::json!({
             "error": "Tree sizes must be greater than 0"
         }));
     }
-    
+
     if query.old_size > query.new_size {
         return HttpResponse::BadRequest().json(serde_json::json!({
             "error": "Old size must be less than or equal to new size"
         }));
     }
-    
+
     match tree.generate_consistency_proof(query.old_size, query.new_size) {
         Some(proof) => HttpResponse::Ok().json(serde_json::json!({
             "proof": proof,
@@ -573,7 +575,7 @@ async fn get_consistency_proof(
             "old_size": query.old_size,
             "new_size": query.new_size,
             "current_tree_size": tree.size()
-        }))
+        })),
     }
 }
 
@@ -583,7 +585,7 @@ async fn verify_consistency_proof(
     proof: web::Json<ConsistencyProof>,
 ) -> HttpResponse {
     let tree = state.merkle_tree.read();
-    
+
     let is_valid = tree.verify_consistency_proof(
         proof.old_size,
         proof.new_size,
@@ -591,7 +593,7 @@ async fn verify_consistency_proof(
         &proof.new_root,
         &proof.proof_hashes,
     );
-    
+
     HttpResponse::Ok().json(serde_json::json!({
         "valid": is_valid,
         "old_size": proof.old_size,
@@ -604,7 +606,7 @@ async fn verify_consistency_proof(
 // Get tree statistics
 async fn get_tree_stats(state: web::Data<AppState>) -> HttpResponse {
     let tree = state.merkle_tree.read();
-    
+
     HttpResponse::Ok().json(serde_json::json!({
         "current_size": tree.size(),
         "root_hash": tree.root_hash(),
@@ -613,13 +615,10 @@ async fn get_tree_stats(state: web::Data<AppState>) -> HttpResponse {
 }
 
 // Get historical root for specific tree sizes
-async fn get_historical_root(
-    state: web::Data<AppState>,
-    path: web::Path<usize>,
-) -> HttpResponse {
+async fn get_historical_root(state: web::Data<AppState>, path: web::Path<usize>) -> HttpResponse {
     let tree_size = path.into_inner();
     let tree = state.merkle_tree.read();
-    
+
     if tree_size == 0 || tree_size > tree.size() {
         return HttpResponse::BadRequest().json(serde_json::json!({
             "error": "Invalid tree size",
@@ -627,10 +626,10 @@ async fn get_historical_root(
             "current_size": tree.size()
         }));
     }
-    
+
     // Use the tree's method to compute historical root
     let root_hash = tree.compute_root_for_size(tree_size);
-    
+
     match root_hash {
         Some(root) => HttpResponse::Ok().json(serde_json::json!({
             "tree_size": tree_size,
@@ -639,7 +638,7 @@ async fn get_historical_root(
         })),
         None => HttpResponse::InternalServerError().json(serde_json::json!({
             "error": "Failed to compute historical root"
-        }))
+        })),
     }
 }
 
@@ -715,7 +714,10 @@ async fn main() -> std::io::Result<()> {
             .route("/merkle/verify", web::post().to(verify_proof))
             .route("/merkle/stats", web::get().to(get_tree_stats))
             .route("/merkle/consistency", web::get().to(get_consistency_proof))
-            .route("/merkle/consistency/verify", web::post().to(verify_consistency_proof))
+            .route(
+                "/merkle/consistency/verify",
+                web::post().to(verify_consistency_proof),
+            )
             .route("/merkle/root/{size}", web::get().to(get_historical_root))
             // Type-specific routes
             .route(

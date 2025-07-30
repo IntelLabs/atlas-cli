@@ -59,7 +59,6 @@ impl ConsistencyProof {
         )
     }
 
-    
     /// Verify this proof is valid
     #[cfg_attr(not(test), allow(dead_code))]
     pub fn verify(&self, old_root: &str, new_root: &str) -> bool {

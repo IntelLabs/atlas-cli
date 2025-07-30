@@ -1,9 +1,9 @@
-use super::hasher::{Hasher, DefaultHasher};
-use super::proof::{InclusionProof, ConsistencyProof};
+use super::hasher::{DefaultHasher, Hasher};
+use super::proof::{ConsistencyProof, InclusionProof};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use std::fmt;
+use std::sync::Arc;
 
 /// Metadata for a leaf node
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -24,7 +24,12 @@ pub struct LogLeaf {
 
 impl LogLeaf {
     /// Create a new log leaf
-    pub fn new(content_hash: String, manifest_id: String, sequence_number: u64, timestamp: DateTime<Utc>) -> Self {
+    pub fn new(
+        content_hash: String,
+        manifest_id: String,
+        sequence_number: u64,
+        timestamp: DateTime<Utc>,
+    ) -> Self {
         LogLeaf {
             content_hash,
             metadata: LeafMetadata {
@@ -93,7 +98,7 @@ impl<'de> Deserialize<'de> for MerkleTree {
             leaves: Vec<LogLeaf>,
             root_hash: Option<String>,
         }
-        
+
         let data = MerkleTreeData::deserialize(deserializer)?;
         let mut tree = MerkleTree::new();
         tree.leaves = data.leaves;
@@ -160,7 +165,8 @@ impl MerkleTree {
         }
 
         // Hash all leaves including their complete data
-        let mut hashes: Vec<String> = self.leaves
+        let mut hashes: Vec<String> = self
+            .leaves
             .iter()
             .map(|leaf| leaf.compute_leaf_hash(self.hasher.as_ref()))
             .collect();
@@ -193,13 +199,14 @@ impl MerkleTree {
         }
 
         // Find the leaf position
-        let position = self.leaves
+        let position = self
+            .leaves
             .iter()
             .position(|leaf| leaf.metadata.manifest_id == manifest_id)?;
 
         let leaf = &self.leaves[position];
         let leaf_hash = leaf.compute_leaf_hash(self.hasher.as_ref());
-        
+
         // Generate the Merkle path
         let merkle_path = self.generate_merkle_path(position);
 
@@ -217,9 +224,10 @@ impl MerkleTree {
     fn generate_merkle_path(&self, mut position: usize) -> Vec<String> {
         let mut path = Vec::new();
         let mut level_size = self.leaves.len();
-        
+
         // Start with leaf hashes
-        let mut level_hashes: Vec<String> = self.leaves
+        let mut level_hashes: Vec<String> = self
+            .leaves
             .iter()
             .map(|leaf| leaf.compute_leaf_hash(self.hasher.as_ref()))
             .collect();
@@ -227,9 +235,9 @@ impl MerkleTree {
         while level_size > 1 {
             // Find sibling position
             let sibling_pos = if position % 2 == 0 {
-                position + 1  // Right sibling
+                position + 1 // Right sibling
             } else {
-                position - 1  // Left sibling
+                position - 1 // Left sibling
             };
 
             // Add sibling hash to path if it exists
@@ -276,7 +284,7 @@ impl MerkleTree {
 
         // Get the actual leaf at this index
         let leaf = &self.leaves[proof.leaf_index];
-        
+
         // Verify the manifest ID matches
         if leaf.metadata.manifest_id != proof.manifest_id {
             return false;
@@ -284,7 +292,7 @@ impl MerkleTree {
 
         // Compute the actual leaf hash
         let computed_leaf_hash = leaf.compute_leaf_hash(self.hasher.as_ref());
-        
+
         // Start with the leaf hash
         let mut current_hash = computed_leaf_hash;
         let mut level_pos = proof.leaf_index;
@@ -335,7 +343,11 @@ impl MerkleTree {
     }
 
     /// Generate a consistency proof between two tree sizes
-    pub fn generate_consistency_proof(&self, old_size: usize, new_size: usize) -> Option<ConsistencyProof> {
+    pub fn generate_consistency_proof(
+        &self,
+        old_size: usize,
+        new_size: usize,
+    ) -> Option<ConsistencyProof> {
         if old_size == 0 || new_size == 0 || old_size > new_size || new_size > self.leaves.len() {
             return None;
         }
@@ -416,7 +428,7 @@ impl MerkleTree {
 
         // Build the proof using a simpler algorithm
         let mut proof = Vec::new();
-        
+
         // For now, include intermediate hashes that allow verification
         // This is a simplified version that works for the tests
         if old_size < new_size {
@@ -424,7 +436,7 @@ impl MerkleTree {
             if let Some(old_root) = self.compute_root_for_size(old_size) {
                 proof.push(old_root);
             }
-            
+
             // Include hashes needed to build up to the new size
             // This is a simplified approach - a full RFC 6962 implementation
             // would calculate the minimal set of hashes needed
@@ -434,7 +446,7 @@ impl MerkleTree {
                 }
             }
         }
-        
+
         proof
     }
 
@@ -458,7 +470,7 @@ impl MerkleTree {
         // Compute what the roots should be for these sizes
         let computed_old_root = self.compute_root_for_size(old_size);
         let computed_new_root = self.compute_root_for_size(new_size);
-        
+
         match (computed_old_root, computed_new_root) {
             (Some(old), Some(new)) => old == old_root && new == new_root,
             _ => false,
@@ -467,7 +479,7 @@ impl MerkleTree {
 
     /// Compute the hash of a subtree given its leaf hashes
     #[cfg_attr(not(test), allow(dead_code))]
-   fn compute_subtree_hash(&self, leaf_hashes: &[String]) -> String {
+    fn compute_subtree_hash(&self, leaf_hashes: &[String]) -> String {
         if leaf_hashes.is_empty() {
             return String::new();
         }
@@ -478,10 +490,10 @@ impl MerkleTree {
 
         // Build the subtree bottom-up
         let mut current_level = leaf_hashes.to_vec();
-        
+
         while current_level.len() > 1 {
             let mut next_level = Vec::new();
-            
+
             for i in (0..current_level.len()).step_by(2) {
                 if i + 1 < current_level.len() {
                     // Hash pair of nodes
@@ -492,10 +504,10 @@ impl MerkleTree {
                     next_level.push(current_level[i].clone());
                 }
             }
-            
+
             current_level = next_level;
         }
-        
+
         current_level[0].clone()
     }
 
@@ -518,8 +530,8 @@ impl MerkleTree {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::hasher::DefaultHasher;
+    use super::*;
 
     #[test]
     fn test_empty_tree() {
@@ -537,7 +549,7 @@ mod tests {
             1,
             Utc::now(),
         );
-        
+
         tree.add_leaf(leaf);
         assert_eq!(tree.size(), 1);
         assert!(tree.root_hash().is_some());
@@ -547,7 +559,7 @@ mod tests {
     fn test_inclusion_proof() {
         let mut tree = MerkleTree::new();
         let now = Utc::now();
-        
+
         // Add multiple leaves
         for i in 0..5 {
             let leaf = LogLeaf::new(
@@ -562,25 +574,25 @@ mod tests {
         // Generate and verify proof for the third leaf
         let proof = tree.generate_inclusion_proof("manifest_002").unwrap();
         assert!(tree.verify_inclusion_proof(&proof));
-        
+
         // Verify proof fails with wrong manifest ID at the same index
         // This should fail because we verify the manifest_id matches what's at that index
         let mut bad_proof = proof.clone();
         bad_proof.manifest_id = "wrong_id".to_string();
         assert!(!tree.verify_inclusion_proof(&bad_proof));
-        
+
         // Verify proof fails with tampered hash
         let mut tampered_proof = proof.clone();
         tampered_proof.leaf_hash = "tampered_hash".to_string();
         // The leaf_hash in the proof is not directly used in our verification
         // (we compute it from the actual leaf!!), so this won't affect verification
         assert!(tree.verify_inclusion_proof(&tampered_proof));
-        
+
         // Verify proof fails with tampered root
         let mut bad_root_proof = proof.clone();
         bad_root_proof.root_hash = "wrong_root".to_string();
         assert!(!tree.verify_inclusion_proof(&bad_root_proof));
-        
+
         // Verify proof fails with wrong tree size
         let mut bad_size_proof = proof.clone();
         bad_size_proof.tree_size = 10;
@@ -591,21 +603,21 @@ mod tests {
     fn test_leaf_hash_includes_all_fields() {
         let hasher = DefaultHasher;
         let now = Utc::now();
-        
+
         let leaf1 = LogLeaf::new(
             "content_hash".to_string(),
             "manifest_001".to_string(),
             1,
             now,
         );
-        
+
         let leaf2 = LogLeaf::new(
             "content_hash".to_string(),
             "manifest_002".to_string(), // Different manifest ID
             1,
             now,
         );
-        
+
         // Hashes should be different even with same content hash
         assert_ne!(
             leaf1.compute_leaf_hash(&hasher),
@@ -617,7 +629,7 @@ mod tests {
     fn test_tree_persistence() {
         let mut tree = MerkleTree::new();
         let now = Utc::now();
-        
+
         // Add some leaves
         for i in 0..3 {
             tree.add_leaf(LogLeaf::new(
@@ -627,13 +639,13 @@ mod tests {
                 now,
             ));
         }
-        
+
         let original_root = tree.root_hash().unwrap().clone();
-        
+
         // Simulate persistence and reload
         let leaves = tree.leaves().to_vec();
         let restored_tree = MerkleTree::from_leaves(leaves);
-        
+
         assert_eq!(restored_tree.root_hash().unwrap(), &original_root);
         assert_eq!(restored_tree.size(), tree.size());
     }
@@ -642,7 +654,7 @@ mod tests {
     fn test_consistency_proof_same_size() {
         let mut tree = MerkleTree::new();
         let now = Utc::now();
-        
+
         for i in 0..5 {
             tree.add_leaf(LogLeaf::new(
                 format!("hash_{}", i),
@@ -651,7 +663,7 @@ mod tests {
                 now,
             ));
         }
-        
+
         // Same size should produce empty proof
         let proof = tree.generate_consistency_proof(3, 3).unwrap();
         assert!(proof.proof_hashes.is_empty());
@@ -662,10 +674,10 @@ mod tests {
     fn test_consistency_proof_incremental() {
         let mut tree = MerkleTree::new();
         let now = Utc::now();
-        
+
         // Build tree incrementally and track roots
         let mut roots = Vec::new();
-        
+
         for i in 0..8 {
             tree.add_leaf(LogLeaf::new(
                 format!("hash_{}", i),
@@ -675,16 +687,16 @@ mod tests {
             ));
             roots.push(tree.root_hash().unwrap().clone());
         }
-        
+
         // Test consistency between different sizes
         for old_size in 1..8 {
             for new_size in (old_size + 1)..=8 {
                 let proof = tree.generate_consistency_proof(old_size, new_size).unwrap();
-                
+
                 // Verify the proof contains the expected roots
                 assert_eq!(proof.old_root, roots[old_size - 1]);
                 assert_eq!(proof.new_root, roots[new_size - 1]);
-                
+
                 // Verify the proof is valid
                 let is_valid = tree.verify_consistency_proof(
                     old_size,
@@ -693,7 +705,11 @@ mod tests {
                     &proof.new_root,
                     &proof.proof_hashes,
                 );
-                assert!(is_valid, "Consistency proof failed for {} -> {}", old_size, new_size);
+                assert!(
+                    is_valid,
+                    "Consistency proof failed for {} -> {}",
+                    old_size, new_size
+                );
             }
         }
     }
@@ -702,7 +718,7 @@ mod tests {
     fn test_consistency_proof_power_of_two() {
         let mut tree = MerkleTree::new();
         let now = Utc::now();
-        
+
         // Test with power-of-two sizes (2, 4, 8, 16)
         for i in 0..16 {
             tree.add_leaf(LogLeaf::new(
@@ -712,16 +728,16 @@ mod tests {
                 now,
             ));
         }
-        
+
         // Test consistency between powers of two
         let sizes = vec![2, 4, 8, 16];
         for i in 0..sizes.len() - 1 {
             let old_size = sizes[i];
             let new_size = sizes[i + 1];
-            
+
             let proof = tree.generate_consistency_proof(old_size, new_size).unwrap();
             assert!(!proof.proof_hashes.is_empty());
-            
+
             let is_valid = tree.verify_consistency_proof(
                 old_size,
                 new_size,
@@ -737,7 +753,7 @@ mod tests {
     fn test_consistency_proof_invalid_cases() {
         let mut tree = MerkleTree::new();
         let now = Utc::now();
-        
+
         for i in 0..5 {
             tree.add_leaf(LogLeaf::new(
                 format!("hash_{}", i),
@@ -746,7 +762,7 @@ mod tests {
                 now,
             ));
         }
-        
+
         // Test invalid cases
         assert!(tree.generate_consistency_proof(0, 3).is_none());
         assert!(tree.generate_consistency_proof(3, 0).is_none());
@@ -758,16 +774,16 @@ mod tests {
     fn test_subtree_hash_computation() {
         let tree = MerkleTree::new();
         let hasher = DefaultHasher;
-        
+
         // Test single leaf
         let single = vec!["hash1".to_string()];
         assert_eq!(tree.compute_subtree_hash(&single), "hash1");
-        
+
         // Test pair of leaves
         let pair = vec!["hash1".to_string(), "hash2".to_string()];
         let expected = hasher.hash(b"node:hash1:hash2");
         assert_eq!(tree.compute_subtree_hash(&pair), expected);
-        
+
         // Test tree with 4 leaves
         let four = vec![
             "hash1".to_string(),

@@ -1,5 +1,5 @@
+use base64::{engine::general_purpose, Engine as _};
 use ring::digest::{Context, SHA256, SHA384};
-use base64::{Engine as _, engine::general_purpose};
 use std::fmt::Debug;
 
 /// Trait for hashing functionality
