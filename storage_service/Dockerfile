@@ -14,8 +14,6 @@ RUN apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/src/app/target/release/c2pa_storage_service /usr/local/bin/
-#COPY --from=aquasec/trivy:latest /usr/local/bin/trivy /usr/local/bin/trivy
-#RUN trivy filesystem --exit-code 1 --no-progress /
 
 
 EXPOSE 8080
