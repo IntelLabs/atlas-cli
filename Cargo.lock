@@ -99,9 +99,9 @@ checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
 
 [[package]]
 name = "atlas-c2pa-lib"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e72e4abc47e1e3ff53ea91db397e1b7ea9f60fccfdcc0b60421caecfe727c0b9"
+checksum = "b61f938fa4f11de6ae3c7e6d9c3ae1bb716d91b2b4eebb10294c7a9891956f3e"
 dependencies = [
  "base64",
  "chrono",

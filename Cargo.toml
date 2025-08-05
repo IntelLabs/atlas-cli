@@ -28,7 +28,7 @@ yaml = []
 with-tdx = ["tdx_workload_attestation/host-gcp-tdx"]
 
 [dependencies]
-atlas-c2pa-lib = { version = "0.1.1" }
+atlas-c2pa-lib = { version = "0.1.2" }
 
 # TDX
 tdx_workload_attestation = { version = "0.1.0", default-features = false }
