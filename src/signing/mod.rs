@@ -7,7 +7,7 @@ use std::fs::read;
 use std::path::Path;
 use zeroize::{ZeroizeOnDrop, Zeroizing};
 
-pub mod metadata_signer;
+pub mod signable;
 
 /// Secure wrapper for private key data that zeroizes on drop
 #[derive(ZeroizeOnDrop)]

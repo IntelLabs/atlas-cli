@@ -32,6 +32,7 @@ pub struct ManifestMetadata {
 }
 
 pub trait StorageBackend {
+    fn get_base_uri(&self) -> String;
     fn store_manifest(&self, manifest: &Manifest) -> Result<String>;
     fn retrieve_manifest(&self, id: &str) -> Result<Manifest>;
     fn list_manifests(&self) -> Result<Vec<ManifestMetadata>>;

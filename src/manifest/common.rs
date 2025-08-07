@@ -2,13 +2,12 @@ use crate::cc_attestation;
 use crate::error::{Error, Result};
 use crate::hash;
 use crate::in_toto;
-use crate::in_toto::dsse::Envelope;
 use crate::manifest::config::ManifestCreationConfig;
 use crate::manifest::utils::{
     determine_dataset_type, determine_format, determine_model_type, determine_software_type,
 };
 use crate::signing;
-use crate::signing::metadata_signer::MetadataSigner;
+use crate::signing::signable::Signable;
 use crate::storage::traits::{ArtifactLocation, StorageBackend};
 use atlas_c2pa_lib::assertion::{
     Action, ActionAssertion, Assertion, Author, CreativeWorkAssertion, CustomAssertion,
@@ -22,14 +21,13 @@ use atlas_c2pa_lib::ingredient::{Ingredient, IngredientData};
 use atlas_c2pa_lib::manifest::Manifest;
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use serde_json::{to_vec, to_string_pretty};
+use serde_json::{to_string, to_string_pretty};
 use std::path::{Path, PathBuf};
 use tdx_workload_attestation::get_platform_name;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
 const CLAIM_GENERATOR: &str = "atlas-cli:0.1.1";
-const DSSE_PAYLOAD_TYPE: &str = "application/vnd.in-toto+json";
 
 /// Asset type enum to distinguish between models, datasets, software, and evaluations
 pub enum AssetKind {
@@ -39,32 +37,21 @@ pub enum AssetKind {
     Evaluation,
 }
 
-pub struct C2paManifestSigner {
-    claim: ClaimV2,
-    key_path: PathBuf,
-    hash_alg: HashAlgorithm,
-}
-
-impl C2paManifestSigner {
-    pub fn new(claim: &ClaimV2, key_path: PathBuf, hash_alg: HashAlgorithm) -> Self {
-	Self {
-	    claim: claim.clone(),
-	    key_path: key_path,
-	    hash_alg: hash_alg,
-	}
-    }
-}
-
-impl MetadataSigner for C2paManifestSigner {
-    fn sign(&self) -> Result<Vec<u8>> {
-	let private_key = signing::load_private_key(&self.key_path)?;
+impl Signable for Manifest {
+    fn sign(&mut self, key_path: PathBuf, hash_alg: HashAlgorithm) -> Result<()> {
+	let private_key = signing::load_private_key(&key_path)?;
 
         // Serialize claim to CBOR for signing
         let claim_cbor =
             serde_cbor::to_vec(&self.claim).map_err(|e| Error::Serialization(e.to_string()))?;
 
         // Use the signing module with the specified algorithm
-        signing::sign_data_with_algorithm(&claim_cbor, &private_key, &self.hash_alg)
+        let signature = signing::sign_data_with_algorithm(&claim_cbor, &private_key, &hash_alg)?;
+
+	// Add signature to claim
+        self.claim.signature = Some(STANDARD.encode(&signature));
+	
+	Ok(())
     }
 }
 
@@ -250,17 +237,7 @@ fn generate_c2pa_claim(config: &ManifestCreationConfig, asset_kind: AssetKind) -
 
 /// Creates a manifest for a model, dataset, software, or evaluation
 pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) -> Result<()> {
-    let mut claim = generate_c2pa_claim(&config, asset_kind)?;
-
-    // Sign if key is provided
-    if let Some(key_file) = &config.key_path {
-	let signer = C2paManifestSigner::new(&claim, key_file.to_path_buf(), config.hash_alg);
-
-	let signature = signer.sign()?;
-	
-	// Add signature to claim
-        claim.signature = Some(STANDARD.encode(&signature));
-    }
+    let claim = generate_c2pa_claim(&config, asset_kind)?;
 
     // Create the manifest
     let mut manifest = Manifest {
@@ -274,6 +251,11 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
         claim_v2: Some(claim),
         is_active: true,
     };
+
+    // Sign if key is provided
+    if let Some(key_file) = &config.key_path {
+	manifest.sign(key_file.to_path_buf(), config.hash_alg)?;
+    }
 
     if let Some(manifest_ids) = &config.linked_manifests {
         if let Some(storage_backend) = &config.storage {
@@ -355,7 +337,7 @@ pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
 	ingredients: vec![],
         created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
         cross_references: vec![],
-        claim_v2: Some(claim),
+        claim_v2: None,
         is_active: true,
     };
 
@@ -393,14 +375,22 @@ pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
         }
     }
 
-    // Sign the DSSE
-    let manifest_json =
-        to_vec(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
-    let signer = in_toto::DsseSigner::new(&manifest_json, DSSE_PAYLOAD_TYPE.to_string(), config.key_path.expect("no signing key provided").to_path_buf(), config.hash_alg);
-    let signature = signer.sign()?;
+    // Generate the in-toto format Statement and sign the DSSE
 
-    let mut envelope = Envelope::new(&manifest_json, DSSE_PAYLOAD_TYPE.to_string());
-    envelope.add_signature(signature, "".to_string()); // keyid is optional
+    // we need to convert this into a string to serialize into the Struct proto expected by in-toto
+    let manifest_json =
+        to_string(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
+    let manifest_proto = in_toto::json_to_struct_proto(&manifest_json)?;
+
+    // make the statement subject
+    let mut subject_uri = "file:///".to_string();
+    if let Some(storage_backend) = &config.storage {
+	subject_uri = storage_backend.get_base_uri();
+    }
+
+    let subject = in_toto::make_statement_subject(subject_uri.as_str(), "alg", "decafbad");
+
+    let envelope = in_toto::generate_signed_statement_v1(&[subject], "https://spec.c2pa.org/specifications/specifications/2.2", &manifest_proto, config.key_path.expect("signing key must be provided").to_path_buf(), config.hash_alg)?;
 
     // Output manifest if requested
     if config.print || config.storage.is_none() {
@@ -421,6 +411,14 @@ pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
                     config.output_encoding
                 )));
             }
+        }
+    }
+
+    // Store manifest if storage is provided
+    if let Some(storage) = &config.storage {
+        if !config.print {
+            let id = storage.store_manifest(&manifest)?;
+            println!("Manifest stored successfully with ID: {id}");
         }
     }
 
