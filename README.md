@@ -13,7 +13,7 @@ A command-line interface tool for creating, managing, and verifying Content Prov
 ## Key Features
 
 - **Model & Dataset Manifests**: Create C2PA-compliant manifests for ML models and datasets
-- **Cryptographic Signing**: Sign manifests with cryptographic keys for authenticity verification
+- **Cryptographic Signing**: Sign manifests with cryptographic keys for authenticity verification, incl. support for the [OpenSSF Model Signing] (OMS) specification.
 - **Provenance Linking**: Create verifiable links between models, datasets, and ML assets
 - **Multiple Storage Types**: Store manifests in MongoDB, Rekor log, or filesystem backends
 - **Format Support**: Work with models in ONNX, TensorFlow, PyTorch, and Keras formats
@@ -101,3 +101,5 @@ If you use Atlas CLI in your research or work, please cite our paper:
 - **Blog Post**: [Building Trust in AI: An End-to-End Approach for the Machine Learning Lifecycle](https://community.intel.com/t5/Blogs/Tech-Innovation/Artificial-Intelligence-AI/Building-Trust-in-AI-An-End-to-End-Approach-for-the-Machine/post/1648746)
 - **Documentation**: [docs.rs/atlas-cli]
 - **Crate**: [crates.io/crates/atlas-cli]
+
+[OpenSSF Model Signing]: https://github.com/ossf/model-signing-spec

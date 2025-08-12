@@ -22,11 +22,11 @@ pub fn json_to_struct_proto(json_str: &str) -> Result<Struct> {
     Ok(msg_struct)
 }
 
-pub fn make_statement_subject(uri: &str, alg: &str, digest: &str) -> ResourceDescriptor {
+pub fn make_statement_subject(name: &str, alg: &str, digest: &str) -> ResourceDescriptor {
     let digest_set = HashMap::from([(alg.to_string(), digest.to_string())]);
 
     let mut rd = ResourceDescriptor::new();
-    rd.uri = uri.to_string();
+    rd.name = name.to_string();
     rd.digest = digest_set;
     
     rd

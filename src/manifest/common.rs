@@ -171,14 +171,9 @@ fn generate_c2pa_assertions(config: &ManifestCreationConfig, asset_kind: AssetKi
                         }
                         params
                     }
-                    _ => serde_json::json!({
-                        "name": config.name,
-                        "description": config.description,
-                        "author": {
-                            "organization": config.author_org,
-                            "name": config.author_name
-                        }
-                    }),
+		    // don't need to repeat info for created action assertions that's
+		    // already in the CreativeWork assertion
+                    _ => serde_json::json!({})
                 }),
                 digital_source_type: Some(digital_source_type),
                 instance_id: None,
@@ -330,8 +325,8 @@ pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
 
     // Create the manifest
     let mut manifest = Manifest {
-        claim_generator: CLAIM_GENERATOR.to_string(),
-        title: config.name.clone(),
+        claim_generator: "".to_string(),
+        title: "".to_string(),
         instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
         claim: claim.clone(),
 	ingredients: vec![],
@@ -382,13 +377,23 @@ pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
         to_string(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
     let manifest_proto = in_toto::json_to_struct_proto(&manifest_json)?;
 
-    // make the statement subject
-    let mut subject_uri = "file:///".to_string();
+    // make the statement subject as specified in https://github.com/sigstore/model-transparency/blob/main/src/model_signing/_signing/signing.py#L181
+
+    // the subject name should be the URI of the "overarching" model file
+    let mut subject_name = config.name.clone();
     if let Some(storage_backend) = &config.storage {
-	subject_uri = storage_backend.get_base_uri();
+	subject_name = storage_backend.get_base_uri();
     }
 
-    let subject = in_toto::make_statement_subject(subject_uri.as_str(), "alg", "decafbad");
+    // generate the hash over all ingredient hashes for the model
+    let mut ingredient_hashes: Vec<u8> = Vec::new();
+    for ingredient in &manifest.claim.ingredients {
+	let raw_bytes = hex::decode(&ingredient.data.hash)?;
+	ingredient_hashes.extend_from_slice(&raw_bytes.clone());
+    }
+    let subject_hash = hash::calculate_hash_with_algorithm(&ingredient_hashes, &config.hash_alg);
+    
+    let subject = in_toto::make_statement_subject(subject_name.as_str(), hash::algorithm_to_string(&config.hash_alg), &subject_hash);
 
     let envelope = in_toto::generate_signed_statement_v1(&[subject], "https://spec.c2pa.org/specifications/specifications/2.2", &manifest_proto, config.key_path.expect("signing key must be provided").to_path_buf(), config.hash_alg)?;
 
