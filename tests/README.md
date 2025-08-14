@@ -8,10 +8,11 @@ Tests also commonly import [common utility scripts] from the `/examples`.
 * [manifest_verify.sh](./manifest_verify.sh): Common manifest verification
   commands.
 * [manifest_utils.sh](./manifest_utils.sh): Common manifest utilies, incl.
-  manifest display, export, and ID extraction.
+  manifest display and export.
 
-**Note:** All scripts use variables defined in [config.sh], so we recommend
-always including a `source` line for this script in any example or demo script.
+**Note:** All scripts use variables defined in [config.sh] from the [common
+utility scripts], so we recommend always including a `source` line for this
+script in every test script.
 
 [config.sh]: ../examples/common/config.sh
 [common utility scripts]: ../examples/common/README.md
