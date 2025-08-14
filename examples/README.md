@@ -6,4 +6,4 @@ This directory contains the following examples:
 * [MNIST lifecycle provenance demo (no pipelines)](./oss-na-25-demo)
 
 In addition, [common/](./common) provides several scripts with common
-functionality useful for composing these and additional examples or demos.
+utilities and configs for composing these and additional examples or demos.

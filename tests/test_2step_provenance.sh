@@ -5,6 +5,7 @@
 # Configuration
 source ../examples/common/config.sh
 source ../examples/common/keys.sh
+source ../examples/common/utils.sh
 source helpers/manifest_utils.sh
 source helpers/manifest_create.sh
 source helpers/manifest_verify.sh
@@ -15,15 +16,9 @@ cd ../storage_service && docker-compose up -d
 TRAIN_DATASET="train-00000-of-00001.parquet"
 TEST_DATASET="test-00000-of-00001.parquet"
 
-if [ ! -e "$TRAIN_DATASET" ]; then
-    echo "Warning: Training datset not found. Downloading..."
-    wget -q https://huggingface.co/datasets/ylecun/mnist/resolve/main/mnist/$TRAIN_DATASET
-fi
+if_file_not_exists_do "$TRAIN_DATASET" "wget -q https://huggingface.co/datasets/ylecun/mnist/resolve/main/mnist/$TRAIN_DATASET"
 
-if [ ! -e "$TEST_DATASET" ]; then
-    echo "Warning: Test datset not found. Downloading..."
-    wget -q https://huggingface.co/datasets/ylecun/mnist/resolve/main/mnist/$TEST_DATASET
-fi
+if_file_not_exists_do "$TEST_DATASET" "wget -q https://huggingface.co/datasets/ylecun/mnist/resolve/main/mnist/$TEST_DATASET"
 
 echo -e "=== STEP 0: Setup Provenance Signing/Verification Key Pair ==="
 generate_signing_keys
@@ -43,7 +38,7 @@ echo -e "\n=== STEP 2: Generate Provenance for Model Training Artifacts ==="
 
 EXTRA_CLI_FLAGS=--with-tdx
 create_software_manifest \
-    "../mnist/train.py" \
+    "../examples/mnist/train.py" \
     "MNIST Training Script" \
     "MNIST CNN Training Implementation" \
     "script" \
@@ -102,7 +97,7 @@ echo "Test Dataset ID: $TEST_DATASET_ID"
 echo "Generate evaluation script manifest"
 EXTRA_CLI_FLAGS=--with-tdx
 create_software_manifest \
-    "../mnist/eval.py" \
+    "../examples/mnist/eval.py" \
     "MNIST Evaluation Script" \
     "MNIST Model Evaluation Implementation" \
     "script" \

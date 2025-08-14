@@ -2,12 +2,9 @@
 # MNIST Provenance Collection Script
 # This script runs the complete MNIST workflow and collects provenance data
 
-# Configuration
 source ../common/config.sh
 source ../common/keys.sh
-source ../common/manifest_utils.sh
-source ../common/manifest_create.sh
-source ../common/manifest_verify.sh
+source ../common/utils.sh
 
 echo "=== STEP 1: Download MNIST Dataset ==="
 poetry run python download.py --path_to_output ./output/data
@@ -20,22 +17,23 @@ FILES=(
 )
 
 for f in "${FILES[@]}"; do
-  if [ ! -e "$f" ]; then
-    echo "Warning: $f does not exist"
-  fi
+    if_file_not_exists_do $f ""
 done
 
 DATAPATHS=$(printf "%s\n" "${FILES[@]}" | xargs realpath 2>/dev/null | paste -sd, -)
 
 echo "Creating dataset manifest..."
-create_dataset_manifest \
-    "$DATAPATHS" \
-    "MNIST Dataset" \
-    "MNIST Training and Test Data" \
-    "Your Organization" \
-    "Your Name" \
-    dataset_output.txt
-DATASET_ID=$(extract_id dataset_output.txt)
+atlas-cli dataset create \
+    --paths="$DATAPATHS" \
+    --ingredient-names="MNIST Dataset" \
+    --name="MNIST Training and Test Data" \
+    --author-org="Your Organization" \
+    --author-name="Your Name" \
+    --storage-type=database \
+    --storage-url=$STORAGE_URL \
+    --key=private.pem \
+    > dataset_output.txt
+DATASET_ID=$(extract_c2pa_id dataset_output.txt)
 echo "Dataset ID: $DATASET_ID"
 
 echo -e "\n=== STEP 2: Train the Model ==="
@@ -48,42 +46,50 @@ poetry run python train.py \
     --use_cuda false
 
 echo "Creating training script manifest linked to dataset..."
-EXTRA_CLI_FLAGS="--linked-manifests=$DATASET_ID"
-create_software_manifest \
-    "train.py" \
-    "MNIST Training Script" \
-    "MNIST CNN Training Implementation" \
-    "script" \
-    "1.0.0" \
-    "Your Organization" \
-    "Your Name" \
-    "PyTorch training script for MNIST CNN model" \
-    training_script_output.txt
-TRAINING_SCRIPT_ID=$(extract_id training_script_output.txt)
+atlas-cli software create \
+    --paths=train.py \
+    --ingredient-names="MNIST Training Script" \
+    --name="MNIST CNN Training Implementation" \
+    --software-type="script" \
+    --version="1.0.0" \
+    --linked-manifests=$DATASET_ID \
+    --author-org="Your Organization" \
+    --author-name="Your Name" \
+    --description="PyTorch training script for MNIST CNN model" \
+    --key=private.pem \
+    --storage-type=database \
+    --storage-url=$STORAGE_URL \
+    > training_script_output.txt
+TRAINING_SCRIPT_ID=$(extract_c2pa_id training_script_output.txt)
 echo "Training Script ID: $TRAINING_SCRIPT_ID"
 
-EXTRA_CLI_FLAGS=
 echo "Creating training configuration manifest..."
-create_dataset_manifest \
-    "./output/train/training_conf.json" \
-    "Training Configuration" \
-    "MNIST Training Configuration" \
-    "Your Organization" \
-    "Your Name" \
-    training_config_output.txt
-TRAINING_CONFIG_ID=$(extract_id training_config_output.txt)
+atlas-cli dataset create \
+    --paths=./output/train/training_conf.json \
+    --ingredient-names="Training Configuration" \
+    --name="MNIST Training Configuration" \
+    --author-org="Your Organization" \
+    --author-name="Your Name" \
+    --key=private.pem \
+    --storage-type=database \
+    --storage-url=$STORAGE_URL \
+    > training_config_output.txt
+TRAINING_CONFIG_ID=$(extract_c2pa_id training_config_output.txt)
 echo "Training Config ID: $TRAINING_CONFIG_ID"
 
-EXTRA_CLI_FLAGS="--linked-manifests=$DATASET_ID"
 echo "Creating model manifest linked to dataset..."
-create_model_manifest \
-    "./output/train/model.pkl" \
-    "MNIST CNN Model" \
-    "Trained MNIST Classifier" \
-    "Your Organization" \
-    "Your Name" \
-    model_output.txt
-MODEL_ID=$(extract_id model_output.txt)
+atlas-cli model create \
+    --paths=./output/train/model.pkl \
+    --ingredient-names="MNIST CNN Model" \
+    --name="Trained MNIST Classifier" \
+    --linked-manifests=$DATASET_ID \
+    --author-org="Your Organization" \
+    --author-name="Your Name" \
+    --key=private.pem \
+    --storage-type=database \
+    --storage-url=$STORAGE_URL \
+    > model_output.txt
+MODEL_ID=$(extract_c2pa_id model_output.txt)
 echo "Model ID: $MODEL_ID"
 
 echo -e "\n=== STEP 3: Evaluate the Model ==="
@@ -94,55 +100,73 @@ poetry run python eval.py \
     --batch_size 128 \
     --use_cuda false
 
-EXTRA_CLI_FLAGS="--linked-manifests=$MODEL_ID"
 echo "Creating evaluation script manifest linked to model..."
-create_software_manifest \
-    "eval.py" \
-    "MNIST Evaluation Script" \
-    "MNIST Model Evaluation Implementation" \
-    "script" \
-    "1.0.0" \
-    "Your Organization" \
-    "Your Name" \
-    "PyTorch evaluation script for MNIST CNN model" \
-    eval_script_output.txt
-EVAL_SCRIPT_ID=$(extract_id eval_script_output.txt)
+atlas-cli software create \
+    --paths=eval.py \
+    --ingredient-names="MNIST Evaluation Script" \
+    --name="MNIST Model Evaluation Implementation" \
+    --software-type="script" \
+    --version="1.0.0" \
+    --linked-manifests=$MODEL_ID \
+    --author-org="Your Organization" \
+    --author-name="Your Name" \
+    --description="PyTorch evaluation script for MNIST CNN model" \
+    --key=private.pem \
+    --storage-type=database \
+    --storage-url=$STORAGE_URL \
+    > eval_script_output.txt
+EVAL_SCRIPT_ID=$(extract_c2pa_id eval_script_output.txt)
 echo "Evaluation Script ID: $EVAL_SCRIPT_ID"
 
-EXTRA_CLI_FLAGS=
 echo "Creating evaluation configuration manifest..."
-create_dataset_manifest \
-    "./output/eval/eval_conf.json" \
-    "Evaluation Configuration" \
-    "MNIST Evaluation Configuration" \
-    "Your Organization" \
-    "Your Name" \
-    eval_config_output.txt
-EVAL_CONFIG_ID=$(extract_id eval_config_output.txt)
+atlas-cli dataset create \
+    --paths=./output/eval/eval_conf.json \
+    --ingredient-names="Evaluation Configuration" \
+    --name="MNIST Evaluation Configuration" \
+    --author-org="Your Organization" \
+    --author-name="Your Name" \
+    --key=private.pem \
+    --storage-type=database \
+    --storage-url=$STORAGE_URL \
+    > eval_config_output.txt
+EVAL_CONFIG_ID=$(extract_c2pa_id eval_config_output.txt)
 echo "Evaluation Config ID: $EVAL_CONFIG_ID"
 
 echo "Creating evaluation results manifest linked to model..."
-create_evaluation_manifest \
-    "./output/eval/eval_results.json" \
-    "MNIST Model Evaluation Results" \
-    $MODEL_ID \
-    $DATASET_ID \
-    "Your Organization" \
+atlas-cli evaluation create \
+    --path=./output/eval/eval_results.json \
+    --name="MNIST Model Evaluation Results" \
+    --model-id=$MODEL_ID \
+    --dataset-id=$DATASET_ID \
+    --author-org="Your Organization" \
     --author-name="Your Name" \
-    eval_results_output.txt
-EVAL_RESULTS_ID=$(extract_id eval_results_output.txt)
+    --key=private.pem \
+    --storage-type=database \
+    --storage-url=$STORAGE_URL \
+    > eval_results_output.txt
+EVAL_RESULTS_ID=$(extract_c2pa_id eval_results_output.txt)
 echo "Evaluation Results ID: $EVAL_RESULTS_ID"
 
 echo -e "\n=== STEP 4: Export Provenance Graph ==="
-export_manifest_json \
-    $EVAL_RESULTS_ID \
-    mnist_provenance.json
+atlas-cli manifest export \
+    --id=$EVAL_RESULTS_ID \
+    --storage-type=database \
+    --storage-url=$STORAGE_URL \
+    --format=json \
+    --max-depth=10 \
+    --output=mnist_provenance.json
 
 echo -e "\n=== STEP 5: Validate and Show Provenance ==="
-validate_manifest $EVAL_RESULTS_ID
+atlas-cli manifest validate \
+    --id=$EVAL_RESULTS_ID \
+    --storage-type=database \
+    --storage-url=$STORAGE_URL
 
 echo -e "\nShowing complete manifest with cross-references..."
-display_manifest_json $EVAL_RESULTS_ID
+atlas-cli manifest show \
+    --id=$EVAL_RESULTS_ID \
+    --storage-type=database \
+    --storage-url=$STORAGE_URL
 
 echo -e "\n=== Cleanup ==="
 rm -f *_output.txt
