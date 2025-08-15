@@ -534,3 +534,49 @@ pub enum SoftwareCommands {
         storage_url: Box<String>,
     },
 }
+
+#[derive(Debug, Subcommand)]
+pub enum PipelineCommands {
+    /// Record SLSA Build Provenance for the given pipeline
+    Record {
+	/// Paths to any pipeline inputs and other external parameters
+        #[arg(long = "external-params", num_args = 1.., value_delimiter = ',')]
+        external_params: Vec<PathBuf>,
+
+	/// Paths to any pipeline products
+        #[arg(long = "products", num_args = 1.., value_delimiter = ',')]
+        products: Vec<PathBuf>,
+
+        /// Pipeline name
+        #[arg(long = "name")]
+        name: String,
+
+        /// Path to private key file for signing (PEM format)
+        #[arg(long = "key")]
+        key: Option<PathBuf>,
+
+        /// Hash algorithm to use for signing (default: sha384)
+        #[arg(long = "hash-alg", value_enum, default_value = "sha384")]
+        hash_alg: HashAlgorithmChoice,
+
+        /// Only print SLSA Provenance without storing
+        #[arg(long = "print")]
+        print: bool,
+
+        /// Output format (json or cbor)
+        #[arg(long = "format", default_value = "json")]
+        format: String,
+
+        /// Storage backend (local or rekor)
+        #[arg(long = "storage-type", default_value = "database")]
+        storage_type: Box<String>,
+
+        /// Storage URL
+        #[arg(long = "storage-url", default_value = "http://localhost:8080")]
+        storage_url: Box<String>,
+
+        /// Collect the underlying TDX attestation, if available
+        #[arg(long = "with-tdx", default_value = "false")]
+        with_tdx: bool,
+    },
+}
