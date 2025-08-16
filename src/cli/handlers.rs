@@ -2,12 +2,13 @@ use crate::error::{Error, Result};
 
 use super::commands::{
     CCAttestationCommands, DatasetCommands, EvaluationCommands, ManifestCommands, ModelCommands,
-    SoftwareCommands,
+    PipelineCommands, SoftwareCommands,
 };
 use crate::cc_attestation;
 use crate::manifest;
 use crate::manifest::config::ManifestCreationConfig;
 use crate::manifest::dataset::list_dataset_manifests;
+use crate::slsa;
 use crate::storage::database::DatabaseStorage;
 use crate::storage::filesystem::FilesystemStorage;
 use crate::storage::rekor::RekorStorage;
@@ -537,6 +538,43 @@ pub fn handle_software_command(cmd: SoftwareCommands) -> Result<()> {
 
             // Link software to dataset
             manifest::link_manifests(&dataset_id, &software_id, storage.as_ref())
+        }
+    }
+}
+
+pub fn handle_pipeline_command(cmd: PipelineCommands) -> Result<()> {
+    match cmd {
+        PipelineCommands::GenerateProvenance {
+            inputs,
+            pipeline,
+            products,
+            key,
+            hash_alg,
+            encoding,
+            print,
+            storage_type,
+            storage_url,
+            with_tdx,
+        } => {
+            let storage: Option<&'static dyn StorageBackend> = match storage_type.as_str() {
+                "local-fs" => {
+                    let fs_storage = Box::new(FilesystemStorage::new(storage_url.as_str())?);
+                    Some(Box::leak(fs_storage))
+                }
+                _ => None,
+            };
+
+            slsa::cli::generate_build_provenance(
+                inputs,
+                pipeline,
+                products,
+                key,
+                hash_alg.to_cose_algorithm(),
+                encoding,
+                print,
+                storage,
+                with_tdx,
+            )
         }
     }
 }

@@ -1,4 +1,5 @@
 use crate::error::{Error, Result};
+use crate::hash;
 use crate::signing::signable::Signable;
 
 use atlas_c2pa_lib::cose::HashAlgorithm;
@@ -8,6 +9,7 @@ use protobuf::well_known_types::struct_::Struct;
 use protobuf_json_mapping::{parse_from_str, print_to_string};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub mod dsse;
 
@@ -31,6 +33,21 @@ pub fn make_minimal_resource_descriptor(name: &str, alg: &str, digest: &str) -> 
     rd.digest = digest_set;
 
     rd
+}
+
+pub fn generate_file_resource_descriptor_from_path(
+    path: &Path,
+    algorithm: &HashAlgorithm,
+) -> Result<ResourceDescriptor> {
+    let file_hash = hash::calculate_file_hash_with_algorithm(path, algorithm)?;
+
+    let digest_set = HashMap::from([(algorithm.as_str().to_string(), file_hash.to_string())]);
+
+    let mut rd = ResourceDescriptor::new();
+    rd.name = String::from(path.to_string_lossy());
+    rd.digest = digest_set;
+
+    Ok(rd)
 }
 
 pub fn generate_signed_statement_v1(

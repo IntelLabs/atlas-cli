@@ -537,19 +537,19 @@ pub enum SoftwareCommands {
 
 #[derive(Debug, Subcommand)]
 pub enum PipelineCommands {
-    /// Record SLSA Build Provenance for the given pipeline
-    Record {
-	/// Paths to any pipeline inputs and other external parameters
-        #[arg(long = "external-params", num_args = 1.., value_delimiter = ',')]
-        external_params: Vec<PathBuf>,
+    /// Generate SLSA Build Provenance v1 for the given pipeline
+    GenerateProvenance {
+        /// Paths to any pipeline inputs and other external parameters
+        #[arg(long = "inputs", num_args = 1.., value_delimiter = ',')]
+        inputs: Vec<PathBuf>,
 
-	/// Paths to any pipeline products
+        /// Path to pipeline script or configuration
+        #[arg(long = "pipeline")]
+        pipeline: PathBuf,
+
+        /// Paths to any pipeline products
         #[arg(long = "products", num_args = 1.., value_delimiter = ',')]
         products: Vec<PathBuf>,
-
-        /// Pipeline name
-        #[arg(long = "name")]
-        name: String,
 
         /// Path to private key file for signing (PEM format)
         #[arg(long = "key")]
@@ -563,12 +563,12 @@ pub enum PipelineCommands {
         #[arg(long = "print")]
         print: bool,
 
-        /// Output format (json or cbor)
-        #[arg(long = "format", default_value = "json")]
-        format: String,
+        /// Output encoding (json or cbor)
+        #[arg(long = "encoding", default_value = "json")]
+        encoding: String,
 
-        /// Storage backend (local or rekor)
-        #[arg(long = "storage-type", default_value = "database")]
+        /// Storage backend (only local supported)
+        #[arg(long = "storage-type", default_value = "local-fs")]
         storage_type: Box<String>,
 
         /// Storage URL

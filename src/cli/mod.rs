@@ -4,11 +4,12 @@ use crate::error::Error;
 
 // Re-export commonly used items
 pub use commands::{
-    CCAttestationCommands, DatasetCommands, ManifestCommands, ModelCommands, SoftwareCommands, PipelineCommands,
+    CCAttestationCommands, DatasetCommands, ManifestCommands, ModelCommands, PipelineCommands,
+    SoftwareCommands,
 };
 pub use handlers::{
     handle_cc_attestation_command, handle_dataset_command, handle_manifest_command,
-    handle_model_command, handle_software_command, handle_pipeline_command
+    handle_model_command, handle_pipeline_command, handle_software_command,
 };
 
 // Optional: Add any CLI-specific constants or shared utilities
