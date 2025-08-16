@@ -113,7 +113,7 @@ pub enum ModelCommands {
         #[arg(long = "ingredient-names", num_args = 1.., value_delimiter = ',')]
         ingredient_names: Vec<String>,
 
-	/// Model name
+        /// Model name
         #[arg(long = "name")]
         name: String,
 
@@ -149,7 +149,7 @@ pub enum ModelCommands {
         #[arg(long = "encoding", default_value = "json")]
         encoding: String,
 
-	/// Format (standalone c2pa or oms)
+        /// Format (standalone c2pa or oms)
         #[arg(long = "format", default_value = "standalone")]
         format: String,
 

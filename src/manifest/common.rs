@@ -39,7 +39,7 @@ pub enum AssetKind {
 
 impl Signable for Manifest {
     fn sign(&mut self, key_path: PathBuf, hash_alg: HashAlgorithm) -> Result<()> {
-	let private_key = signing::load_private_key(&key_path)?;
+        let private_key = signing::load_private_key(&key_path)?;
 
         // Serialize claim to CBOR for signing
         let claim_cbor =
@@ -48,14 +48,17 @@ impl Signable for Manifest {
         // Use the signing module with the specified algorithm
         let signature = signing::sign_data_with_algorithm(&claim_cbor, &private_key, &hash_alg)?;
 
-	// Add signature to claim
+        // Add signature to claim
         self.claim.signature = Some(STANDARD.encode(&signature));
-	
-	Ok(())
+
+        Ok(())
     }
 }
 
-fn generate_c2pa_assertions(config: &ManifestCreationConfig, asset_kind: AssetKind) -> Result<Vec<Assertion>> {
+fn generate_c2pa_assertions(
+    config: &ManifestCreationConfig,
+    asset_kind: AssetKind,
+) -> Result<Vec<Assertion>> {
     // Determine asset-specific values
     let (creative_type, digital_source_type) = match asset_kind {
         AssetKind::Model => (
@@ -171,9 +174,9 @@ fn generate_c2pa_assertions(config: &ManifestCreationConfig, asset_kind: AssetKi
                         }
                         params
                     }
-		    // don't need to repeat info for created action assertions that's
-		    // already in the CreativeWork assertion
-                    _ => serde_json::json!({})
+                    // don't need to repeat info for created action assertions that's
+                    // already in the CreativeWork assertion
+                    _ => serde_json::json!({}),
                 }),
                 digital_source_type: Some(digital_source_type),
                 instance_id: None,
@@ -240,7 +243,7 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
         title: config.name.clone(),
         instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
         claim: claim.clone(),
-	ingredients: vec![],
+        ingredients: vec![],
         created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
         cross_references: vec![],
         claim_v2: Some(claim),
@@ -249,7 +252,7 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
 
     // Sign if key is provided
     if let Some(key_file) = &config.key_path {
-	manifest.sign(key_file.to_path_buf(), config.hash_alg)?;
+        manifest.sign(key_file.to_path_buf(), config.hash_alg)?;
     }
 
     if let Some(manifest_ids) = &config.linked_manifests {
@@ -329,7 +332,7 @@ pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
         title: "".to_string(),
         instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
         claim: claim.clone(),
-	ingredients: vec![],
+        ingredients: vec![],
         created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
         cross_references: vec![],
         claim_v2: None,
@@ -373,29 +376,27 @@ pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
     // Generate the in-toto format Statement and sign the DSSE
 
     // we need to convert this into a string to serialize into the Struct proto expected by in-toto
-    let manifest_json =
-        to_string(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
+    let manifest_json = to_string(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
     let manifest_proto = in_toto::json_to_struct_proto(&manifest_json)?;
 
-    // make the statement subject as specified in https://github.com/sigstore/model-transparency/blob/main/src/model_signing/_signing/signing.py#L181
+    let subject_hash = generate_oms_subject_hash(&manifest, &config.hash_alg)?;
 
-    // the subject name should be the URI of the "overarching" model file
-    let mut subject_name = config.name.clone();
-    if let Some(storage_backend) = &config.storage {
-	subject_name = storage_backend.get_base_uri();
-    }
+    let subject = in_toto::make_minimal_resource_descriptor(
+        &config.name,
+        hash::algorithm_to_string(&config.hash_alg),
+        &subject_hash,
+    );
 
-    // generate the hash over all ingredient hashes for the model
-    let mut ingredient_hashes: Vec<u8> = Vec::new();
-    for ingredient in &manifest.claim.ingredients {
-	let raw_bytes = hex::decode(&ingredient.data.hash)?;
-	ingredient_hashes.extend_from_slice(&raw_bytes.clone());
-    }
-    let subject_hash = hash::calculate_hash_with_algorithm(&ingredient_hashes, &config.hash_alg);
-    
-    let subject = in_toto::make_statement_subject(subject_name.as_str(), hash::algorithm_to_string(&config.hash_alg), &subject_hash);
-
-    let envelope = in_toto::generate_signed_statement_v1(&[subject], "https://spec.c2pa.org/specifications/specifications/2.2", &manifest_proto, config.key_path.expect("signing key must be provided").to_path_buf(), config.hash_alg)?;
+    let envelope = in_toto::generate_signed_statement_v1(
+        &[subject],
+        "https://spec.c2pa.org/specifications/specifications/2.2",
+        &manifest_proto,
+        config
+            .key_path
+            .expect("signing key must be provided")
+            .to_path_buf(),
+        config.hash_alg,
+    )?;
 
     // Output manifest if requested
     if config.print || config.storage.is_none() {
@@ -877,4 +878,19 @@ fn get_cc_attestation_assertion() -> Result<CustomAssertion> {
     };
 
     Ok(cc_assertion)
+}
+
+// compute the OMS subject hash as specified in https://github.com/sigstore/model-transparency/blob/main/src/model_signing/_signing/signing.py#L181
+fn generate_oms_subject_hash(manifest: &Manifest, hash_alg: &HashAlgorithm) -> Result<String> {
+    // generate the hash over all ingredient hashes for the model
+    let mut ingredient_hashes: Vec<u8> = Vec::new();
+    for ingredient in &manifest.claim.ingredients {
+        let raw_bytes = hex::decode(&ingredient.data.hash)?;
+        ingredient_hashes.extend_from_slice(&raw_bytes.clone());
+    }
+
+    Ok(hash::calculate_hash_with_algorithm(
+        &ingredient_hashes,
+        hash_alg,
+    ))
 }

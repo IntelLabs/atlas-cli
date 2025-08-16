@@ -114,7 +114,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
             storage_type,
             storage_url,
             print,
-	    encoding,
+            encoding,
             format,
             key,
             hash_alg,
@@ -146,7 +146,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
                 linked_manifests,
                 storage,
                 print,
-		output_encoding: encoding,
+                output_encoding: encoding,
                 key_path: key,
                 hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: with_tdx,
@@ -155,11 +155,15 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
                 custom_fields: None,
             };
 
-	    match format.as_str() {
-		"standalone" => manifest::create_model_manifest(config),
-		"oms" => manifest::common::create_oms_manifest(config),
-		_ => return Err(Error::InitializationError("Unsupported output format".to_string())),
-	    }
+            match format.as_str() {
+                "standalone" => manifest::create_model_manifest(config),
+                "oms" => manifest::common::create_oms_manifest(config),
+                _ => {
+                    return Err(Error::InitializationError(
+                        "Unsupported output format".to_string(),
+                    ));
+                }
+            }
         }
         ModelCommands::List {
             storage_type,
