@@ -1,0 +1,52 @@
+name: "Simple Test"
+description: "Basic functionality test"
+
+environment:
+  storage_type: local-fs
+  storage_url: ./test_storage
+  signing_key: ./keys/test.pem
+  verifying_key: ./keys/test_pub.pem
+  generate_keys: true
+  output_dir: ./test_output
+  hash_alg: sha384
+
+steps:
+  - name: "Create Dataset"
+    action: dataset:create
+    parameters:
+      paths:
+        - ./examples/data/test_data.csv
+      name: "Test Dataset"
+      description: "Simple test dataset"
+      author_org: "Test Org"
+      author_name: "Test User"
+    store_as: DATASET_ID
+
+  - name: "Verify Dataset Integrity"
+    description: "Verify the dataset manifest is valid"
+    action: dataset:verify
+    parameters:
+      manifest_id: "${DATASET_ID}"
+    expect: success
+
+  - name: "Create Model"
+    action: model:create
+    parameters:
+      paths:
+        - ./examples/models/test_model.pkl
+      name: "Test Model"
+      linked_manifests:
+        - "${DATASET_ID}"
+    store_as: MODEL_ID
+
+  - name: "Verify Model Integrity"
+    action: model:verify 
+    parameters:
+      manifest_id: "${MODEL_ID}"
+    expect: success
+
+  - name: "Validate Cross-References"
+    description: "Validate that model correctly references dataset"
+    action: manifest:validate  
+    parameters:
+      manifest_id: "${MODEL_ID}"
