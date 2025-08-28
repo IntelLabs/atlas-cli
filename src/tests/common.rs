@@ -20,6 +20,7 @@ impl MockStorageBackend {
             manifests: Mutex::new(manifests),
         }
     }
+
     pub fn add_manifest(&mut self, manifest: Manifest) {
         // Use lock() to get a mutable reference to the HashMap
         let mut manifests = self.manifests.lock().unwrap();
@@ -33,6 +34,10 @@ impl MockStorageBackend {
 }
 
 impl StorageBackend for MockStorageBackend {
+    fn get_base_uri(&self) -> String {
+        "mock://".to_string()
+    }
+
     fn store_manifest(&self, manifest: &Manifest) -> Result<String> {
         let mut manifests = self.manifests.lock().unwrap();
         let id = manifest.instance_id.clone();

@@ -997,6 +997,8 @@ dependencies = [
 [[package]]
 name = "in_toto_attestation"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55565df376ddbf57e76b04e91d1462d869f10ee480e455ebcd2d70aee61eab45"
 dependencies = [
  "hex",
  "protobuf",
