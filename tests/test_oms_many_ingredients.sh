@@ -3,8 +3,8 @@
 # a trained model with many ingredients
 
 # Configuration
-source ../examples/common/config.sh
-source ../examples/common/keys.sh
+source common/config.sh
+source common/keys.sh
 
 echo -e "Generate Provenance Signing/Verification Key Pair"
 generate_signing_keys
