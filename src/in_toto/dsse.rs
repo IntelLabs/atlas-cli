@@ -37,7 +37,7 @@ pub struct Envelope {
 impl Envelope {
     pub fn new(payload: &Vec<u8>, payload_type: String) -> Self {
         Self {
-            payload: payload.clone(),
+            payload: payload,
             payload_type: payload_type,
             signatures: vec![],
         }

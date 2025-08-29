@@ -883,6 +883,9 @@ fn get_cc_attestation_assertion() -> Result<CustomAssertion> {
 // compute the OMS subject hash as specified in https://github.com/sigstore/model-transparency/blob/main/src/model_signing/_signing/signing.py#L181
 fn generate_oms_subject_hash(manifest: &Manifest, hash_alg: &HashAlgorithm) -> Result<String> {
     // generate the hash over all ingredient hashes for the model
+        if manifest.claim.ingredients.is_empty() {
+        return Err(Error::Validation("OMS requires at least one ingredient".to_string()));
+    }
     let mut ingredient_hashes: Vec<u8> = Vec::new();
     for ingredient in &manifest.claim.ingredients {
         let raw_bytes = hex::decode(&ingredient.data.hash)?;
