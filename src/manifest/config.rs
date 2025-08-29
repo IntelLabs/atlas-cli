@@ -35,7 +35,7 @@ impl ManifestCreationConfig {
             linked_manifests: self.linked_manifests.clone(),
             storage: self.storage,
             print: self.print,
-	    output_encoding: self.output_encoding.clone(),
+            output_encoding: self.output_encoding.clone(),
             key_path: self.key_path.clone(),
             hash_alg: self.hash_alg.clone(),
             with_cc: self.with_cc,

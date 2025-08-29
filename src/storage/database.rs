@@ -75,7 +75,7 @@ impl DatabaseStorage {
 
 impl StorageBackend for DatabaseStorage {
     fn get_base_uri(&self) -> String {
-	self.base_url.clone()
+        self.base_url.clone()
     }
 
     fn store_manifest(&self, manifest: &Manifest) -> Result<String> {
