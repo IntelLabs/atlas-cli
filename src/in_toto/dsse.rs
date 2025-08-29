@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+use zeroize::Zeroizing;
 
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -37,7 +38,7 @@ pub struct Envelope {
 impl Envelope {
     pub fn new(payload: &Vec<u8>, payload_type: String) -> Self {
         Self {
-            payload: payload,
+            payload: payload.to_vec(),
             payload_type: payload_type,
             signatures: vec![],
         }
@@ -53,6 +54,22 @@ impl Envelope {
 
         Ok(())
     }
+
+    pub fn validate(&self) -> bool {
+        // check for required envelope fields
+        if self.payload.is_empty() || self.payload_type.is_empty() || self.signatures.is_empty() {
+            false
+        }
+
+        // check required signature fields
+        for signature in signatures {
+            if signature.sig.is_empty() {
+                false
+            }
+        }
+
+        true
+    }
 }
 
 impl Signable for Envelope {
@@ -60,7 +77,7 @@ impl Signable for Envelope {
         let private_key = signing::load_private_key(&key_path)?;
 
         // DSSE requires that payload_type and payload be signed
-        let mut data_to_sign: Vec<u8> = Vec::new();
+        let mut data_to_sign: Vec<u8> = Zeroizing::new(Vec::new());
         data_to_sign.extend_from_slice(&self.payload_type.clone().into_bytes());
 
         // DSSE requires payload to be JSON bytes

@@ -16,8 +16,9 @@ use dsse::Envelope;
 const DSSE_PAYLOAD_TYPE: &str = "application/vnd.in-toto+json";
 
 pub fn json_to_struct_proto(json_str: &str) -> Result<Struct> {
-    let msg_struct =
-        parse_from_str::<Struct>(&json_str).map_err(|e| Error::Serialization(format!("Failed to serialize in-toto statement: {}", e)))?;
+    let msg_struct = parse_from_str::<Struct>(&json_str).map_err(|e| {
+        Error::Serialization(format!("Failed to serialize in-toto statement: {}", e))
+    })?;
 
     Ok(msg_struct)
 }

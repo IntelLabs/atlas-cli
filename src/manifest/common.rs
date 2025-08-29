@@ -6,7 +6,6 @@ use crate::manifest::config::ManifestCreationConfig;
 use crate::manifest::utils::{
     determine_dataset_type, determine_format, determine_model_type, determine_software_type,
 };
-use crate::signing;
 use crate::signing::signable::Signable;
 use crate::storage::traits::{ArtifactLocation, StorageBackend};
 use atlas_c2pa_lib::assertion::{
@@ -19,8 +18,6 @@ use atlas_c2pa_lib::cross_reference::CrossReference;
 use atlas_c2pa_lib::datetime_wrapper::OffsetDateTimeWrapper;
 use atlas_c2pa_lib::ingredient::{Ingredient, IngredientData};
 use atlas_c2pa_lib::manifest::Manifest;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
 use serde_json::{to_string, to_string_pretty};
 use std::path::{Path, PathBuf};
 use tdx_workload_attestation::get_platform_name;
@@ -35,24 +32,6 @@ pub enum AssetKind {
     Dataset,
     Software,
     Evaluation,
-}
-
-impl Signable for Manifest {
-    fn sign(&mut self, key_path: PathBuf, hash_alg: HashAlgorithm) -> Result<()> {
-        let private_key = signing::load_private_key(&key_path)?;
-
-        // Serialize claim to CBOR for signing
-        let claim_cbor =
-            serde_cbor::to_vec(&self.claim).map_err(|e| Error::Serialization(e.to_string()))?;
-
-        // Use the signing module with the specified algorithm
-        let signature = signing::sign_data_with_algorithm(&claim_cbor, &private_key, &hash_alg)?;
-
-        // Add signature to claim
-        self.claim.signature = Some(STANDARD.encode(&signature));
-
-        Ok(())
-    }
 }
 
 fn generate_c2pa_assertions(
@@ -387,14 +366,15 @@ pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
         &subject_hash,
     );
 
+    let key_path = config
+        .key_path
+        .ok_or_else(|| Error::Validation("OMS format requires a signing key".to_string()))?;
+
     let envelope = in_toto::generate_signed_statement_v1(
         &[subject],
         "https://spec.c2pa.org/specifications/specifications/2.2",
         &manifest_proto,
-        config
-            .key_path
-            .expect("signing key must be provided")
-            .to_path_buf(),
+        key_path.to_path_buf(),
         config.hash_alg,
     )?;
 
@@ -883,9 +863,12 @@ fn get_cc_attestation_assertion() -> Result<CustomAssertion> {
 // compute the OMS subject hash as specified in https://github.com/sigstore/model-transparency/blob/main/src/model_signing/_signing/signing.py#L181
 fn generate_oms_subject_hash(manifest: &Manifest, hash_alg: &HashAlgorithm) -> Result<String> {
     // generate the hash over all ingredient hashes for the model
-        if manifest.claim.ingredients.is_empty() {
-        return Err(Error::Validation("OMS requires at least one ingredient".to_string()));
+    if manifest.claim.ingredients.is_empty() {
+        return Err(Error::Validation(
+            "OMS requires at least one ingredient".to_string(),
+        ));
     }
+
     let mut ingredient_hashes: Vec<u8> = Vec::new();
     for ingredient in &manifest.claim.ingredients {
         let raw_bytes = hex::decode(&ingredient.data.hash)?;
