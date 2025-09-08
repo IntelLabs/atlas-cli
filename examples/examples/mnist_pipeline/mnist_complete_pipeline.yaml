@@ -1,0 +1,170 @@
+name: "MNIST Complete Pipeline"
+description: "Complete MNIST workflow with dataset download, training, evaluation, and provenance tracking"
+
+# Environment configuration
+environment:
+  storage_type: database
+  storage_url: http://localhost:8080
+  signing_key: private.pem
+  verifying_key: public.pem
+  generate_keys: true
+  author_org: "Your Organization"
+  author_name: "Your Name"
+  output_dir: ./output
+  dry_run: false
+  interactive: false
+  continue_on_error: false
+
+# Workflow steps
+steps:
+  # Step 1: Download MNIST Dataset
+  - name: "Download MNIST Dataset"
+    description: "Download MNIST training and test data using download.py"
+    action: shell:command
+    parameters:
+      command: "poetry run python download.py --path_to_output ./output/data"
+      check: true
+
+  # Step 2: Create Dataset Manifest
+  - name: "Create MNIST Dataset Manifest"
+    description: "Register MNIST training and test data files"
+    action: dataset:create
+    parameters:
+      paths:
+        - ./output/data/MNIST/raw/t10k-images-idx3-ubyte.gz
+        - ./output/data/MNIST/raw/t10k-labels-idx1-ubyte.gz
+        - ./output/data/MNIST/raw/train-images-idx3-ubyte.gz
+        - ./output/data/MNIST/raw/train-labels-idx1-ubyte.gz
+      ingredient_names:
+        - "MNIST Dataset"
+      name: "MNIST Training and Test Data"
+      description: "MNIST handwritten digit dataset files"
+    store_as: DATASET_ID
+
+  # Step 3: Train the Model
+  - name: "Train MNIST Model"
+    description: "Train CNN model using train.py"
+    action: shell:command
+    parameters:
+      command: "poetry run python train.py --path_to_data ./output/data --path_to_output ./output/train --batch_size 128 --lr 0.5 --epochs 1 --use_cuda false"
+      check: true
+
+  # Step 4: Register Training Script
+  - name: "Register Training Script"
+    description: "Create manifest for training implementation linked to dataset"
+    action: software:create
+    parameters:
+      paths:
+        - train.py
+      ingredient_names:
+        - "MNIST Training Script"
+      name: "MNIST CNN Training Implementation"
+      software_type: script
+      version: "1.0.0"
+      description: "PyTorch training script for MNIST CNN model"
+      linked_manifests:
+        - "${DATASET_ID}"
+    store_as: TRAINING_SCRIPT_ID
+
+  # Step 5: Register Training Configuration
+  - name: "Register Training Configuration"
+    description: "Create manifest for training configuration"
+    action: dataset:create
+    parameters:
+      paths:
+        - ./output/train/training_conf.json
+      ingredient_names:
+        - "Training Configuration"
+      name: "MNIST Training Configuration"
+      description: "Training hyperparameters and settings"
+    store_as: TRAINING_CONFIG_ID
+
+  # Step 6: Register Trained Model
+  - name: "Register Trained Model"
+    description: "Create manifest for the trained CNN model linked to dataset"
+    action: model:create
+    parameters:
+      paths:
+        - ./output/train/model.pkl
+      ingredient_names:
+        - "MNIST CNN Model"
+      name: "Trained MNIST Classifier"
+      description: "Trained CNN model for digit classification"
+      linked_manifests:
+        - "${DATASET_ID}"
+    store_as: MODEL_ID
+
+  # Step 7: Evaluate the Model
+  - name: "Evaluate MNIST Model"
+    description: "Evaluate trained model using eval.py"
+    action: shell:command
+    parameters:
+      command: "poetry run python eval.py --path_to_data ./output/data --path_to_model ./output/train/model.pkl --path_to_output ./output/eval --batch_size 128 --use_cuda false"
+      check: true
+
+  # Step 8: Register Evaluation Script
+  - name: "Register Evaluation Script"
+    description: "Create manifest for evaluation implementation linked to model"
+    action: software:create
+    parameters:
+      paths:
+        - eval.py
+      ingredient_names:
+        - "MNIST Evaluation Script"
+      name: "MNIST Model Evaluation Implementation"
+      software_type: script
+      version: "1.0.0"
+      description: "PyTorch evaluation script for MNIST CNN model"
+      linked_manifests:
+        - "${MODEL_ID}"
+    store_as: EVAL_SCRIPT_ID
+
+  # Step 9: Register Evaluation Configuration
+  - name: "Register Evaluation Configuration"
+    description: "Create manifest for evaluation configuration"
+    action: dataset:create
+    parameters:
+      paths:
+        - ./output/eval/eval_conf.json
+      ingredient_names:
+        - "Evaluation Configuration"
+      name: "MNIST Evaluation Configuration"
+      description: "Evaluation settings and parameters"
+    store_as: EVAL_CONFIG_ID
+
+  # Step 10: Create Evaluation Results
+  - name: "Create Evaluation Results"
+    description: "Register model evaluation results linked to model and dataset"
+    action: evaluation:create
+    parameters:
+      path: ./output/eval/eval_results.json
+      name: "MNIST Model Evaluation Results"
+      model_id: "${MODEL_ID}"
+      dataset_id: "${DATASET_ID}"
+      description: "Performance metrics and evaluation results"
+    store_as: EVAL_RESULTS_ID
+
+  # Step 11: Validate Cross-References
+  - name: "Validate Cross-References"
+    description: "Validate that all manifest cross-references are correct"
+    action: manifest:validate
+    parameters:
+      manifest_id: "${EVAL_RESULTS_ID}"
+
+  # Step 12: Export Provenance Graph
+  - name: "Export Provenance Graph"
+    description: "Export complete provenance graph to JSON"
+    action: manifest:export
+    parameters:
+      manifest_id: "${EVAL_RESULTS_ID}"
+      output_file: ./output/mnist_provenance.json
+      format: json
+      max_depth: 10
+
+  # Step 13: Show Final Manifest
+  - name: "Show Final Manifest"
+    description: "Display complete manifest with cross-references"
+    action: manifest:show
+    parameters:
+      manifest_id: "${EVAL_RESULTS_ID}"
+      save_to: ./output/final_manifest.txt

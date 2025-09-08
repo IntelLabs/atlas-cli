@@ -1,0 +1,254 @@
+name: "OSS 25 Demo Pipeline"
+description: "Demo MNIST workflow with provenance collection, manifest linking, and validation (no actual training)"
+
+# Environment configuration
+environment:
+  storage_type: database
+  storage_url: http://localhost:8080
+  signing_key: private.pem
+  verifying_key: public.pem
+  generate_keys: true
+  author_org: "Your Organization"
+  author_name: "Your Name"
+  output_dir: ./output
+  dry_run: false
+  interactive: true  # Enable interactive mode for pauses
+  continue_on_error: false
+
+# Workflow steps
+steps:
+  # Step 0: Download MNIST Parquet Files
+  - name: "Download Training Dataset"
+    description: "Download MNIST training dataset from HuggingFace"
+    action: shell:command
+    parameters:
+      command: "wget -q https://huggingface.co/datasets/ylecun/mnist/resolve/main/mnist/train-00000-of-00001.parquet"
+      check: false
+
+  - name: "Download Test Dataset"
+    description: "Download MNIST test dataset from HuggingFace"
+    action: shell:command
+    parameters:
+      command: "wget -q https://huggingface.co/datasets/ylecun/mnist/resolve/main/mnist/test-00000-of-00001.parquet"
+      check: false
+
+  # Step 1: Generate Provenance for MNIST Training Data
+  - name: "Create Training Dataset Manifest"
+    description: "Create training dataset manifest"
+    action: dataset:create
+    parameters:
+      paths:
+        - train-00000-of-00001.parquet
+      ingredient_names:
+        - "MNIST Training Dataset"
+      name: "MNIST Training Data"
+      author_org: "https://huggingface.co/datasets/ylecun/mnist/tree/main/mnist/blob/main/mnist/train-00000-of-00001.parquet"
+      author_name: "ylecun"
+      description: "MNIST training dataset from HuggingFace"
+    store_as: TRAIN_DATASET_ID
+    pause_after: true
+
+  - name: "Display Training Dataset Manifest"
+    description: "Export and display training data manifest"
+    action: manifest:export
+    parameters:
+      manifest_id: "${TRAIN_DATASET_ID}"
+      output_file: ./output/train_dataset_manifest.json
+      format: json
+    pause_after: true
+
+  - name: "Show Training Dataset JSON"
+    description: "Display formatted JSON of training dataset manifest"
+    action: shell:command
+    parameters:
+      command: "cat ./output/train_dataset_manifest.json | jq '.'"
+      check: false
+    pause_after: true
+
+  # Step 2: Generate Provenance for Model Training Artifacts
+  - name: "Create Training Script Manifest"
+    description: "Create training script manifest with TDX attestation"
+    action: software:create
+    parameters:
+      paths:
+        - ../mnist/train.py
+      ingredient_names:
+        - "MNIST Training Script"
+      name: "MNIST CNN Training Implementation"
+      software_type: script
+      version: "1.0.0"
+      description: "PyTorch training script for MNIST CNN model"
+      with_tdx: true
+    store_as: TRAINING_SCRIPT_ID
+
+  - name: "Create Dummy Model File"
+    description: "Create placeholder model file for demo"
+    action: shell:command
+    parameters:
+      command: "touch classifier.onnx"
+      check: true
+
+  - name: "Create Model Manifest"
+    description: "Create model manifest"
+    action: model:create
+    parameters:
+      paths:
+        - classifier.onnx
+      ingredient_names:
+        - "MNIST CNN Model"
+      name: "Trained MNIST Classifier"
+      description: "Demo MNIST classifier model"
+    store_as: MODEL_ID
+
+  - name: "Display Model Manifest"
+    description: "Export and display model manifest"
+    action: manifest:export
+    parameters:
+      manifest_id: "${MODEL_ID}"
+      output_file: ./output/model_manifest.json
+      format: json
+
+  - name: "Show Model JSON"
+    description: "Display formatted JSON of model manifest"
+    action: shell:command
+    parameters:
+      command: "cat ./output/model_manifest.json | jq '.'"
+      check: false
+    pause_after: true
+
+  # Step 3: Link Model Training Manifests
+  - name: "Link Training Dataset to Model"
+    description: "Link MNIST training dataset to model"
+    action: manifest:link
+    parameters:
+      source: "${MODEL_ID}"
+      target: "${TRAIN_DATASET_ID}"
+    store_as: MODEL_ID  # Update MODEL_ID with linked version
+
+  - name: "Link Training Script to Model"
+    description: "Link training script to model"
+    action: manifest:link
+    parameters:
+      source: "${MODEL_ID}"
+      target: "${TRAINING_SCRIPT_ID}"
+    store_as: MODEL_ID  # Update MODEL_ID with linked version
+
+  - name: "Display Updated Model Manifest"
+    description: "Export and display updated model manifest with links"
+    action: manifest:export
+    parameters:
+      manifest_id: "${MODEL_ID}"
+      output_file: ./output/linked_model_manifest.json
+      format: json
+
+  - name: "Show Linked Model JSON"
+    description: "Display formatted JSON of linked model manifest"
+    action: shell:command
+    parameters:
+      command: "cat ./output/linked_model_manifest.json | jq '.'"
+      check: false
+    pause_after: true
+
+  # Step 4: Generate & Link Provenance for Model Evaluation Artifacts
+  - name: "Create Test Dataset Manifest"
+    description: "Create test dataset manifest"
+    action: dataset:create
+    parameters:
+      paths:
+        - test-00000-of-00001.parquet
+      ingredient_names:
+        - "MNIST Test Dataset"
+      name: "MNIST Test Data"
+      author_org: "https://huggingface.co/datasets/ylecun/mnist/tree/main/mnist/blob/main/mnist/test-00000-of-00001.parquet"
+      author_name: "ylecun"
+      description: "MNIST test dataset from HuggingFace"
+    store_as: TEST_DATASET_ID
+
+  - name: "Create Evaluation Script Manifest"
+    description: "Create evaluation script manifest with TDX attestation"
+    action: software:create
+    parameters:
+      paths:
+        - ../mnist/eval.py
+      ingredient_names:
+        - "MNIST Evaluation Script"
+      name: "MNIST Model Evaluation Implementation"
+      software_type: script
+      version: "1.0.0"
+      description: "PyTorch evaluation script for MNIST CNN model"
+      with_tdx: true
+    store_as: EVAL_SCRIPT_ID
+
+  - name: "Create Dummy Evaluation Results"
+    description: "Create placeholder evaluation results file"
+    action: shell:command
+    parameters:
+      command: "touch eval_results.json"
+      check: true
+
+  - name: "Create Evaluation Results Manifest"
+    description: "Create evaluation results manifest linked to model and test dataset"
+    action: evaluation:create
+    parameters:
+      path: eval_results.json
+      name: "MNIST Model Evaluation Results"
+      model_id: "${MODEL_ID}"
+      dataset_id: "${TEST_DATASET_ID}"
+      description: "Demo evaluation results for MNIST model"
+    store_as: EVAL_RESULTS_ID
+
+  - name: "Link Evaluation Script to Results"
+    description: "Link evaluation script to evaluation results"
+    action: manifest:link
+    parameters:
+      source: "${EVAL_RESULTS_ID}"
+      target: "${EVAL_SCRIPT_ID}"
+    store_as: EVAL_RESULTS_ID  # Update with linked version
+    pause_after: true
+
+  # Step 5: Export Provenance Graph
+  - name: "Export Complete Provenance Graph"
+    description: "Export complete provenance graph to JSON"
+    action: manifest:export
+    parameters:
+      manifest_id: "${EVAL_RESULTS_ID}"
+      output_file: ./output/mnist_provenance.json
+      format: json
+      max_depth: 10
+    pause_after: true
+
+  # Step 6: Validation Steps
+  - name: "Validate Model Manifest"
+    description: "Validate model manifest integrity"
+    action: manifest:validate
+    parameters:
+      manifest_id: "${MODEL_ID}"
+
+  - name: "Validate Evaluation Results Manifest"
+    description: "Validate evaluation results manifest integrity"
+    action: manifest:validate
+    parameters:
+      manifest_id: "${EVAL_RESULTS_ID}"
+
+  - name: "Test Invalid Manifest Link (Should Fail)"
+    description: "Test verification with invalid manifest ID (expected to fail)"
+    action: shell:command
+    parameters:
+      command: "atlas-cli manifest verify-link --source=${MODEL_ID} --target=urn:c2pa:123e4567-e89b-12d3-a456-426614174000 --storage-type=database --storage-url=http://localhost:8080"
+      check: false  # Allow this to fail
+
+  - name: "Display Final Provenance Graph"
+    description: "Display the complete exported provenance graph"
+    action: shell:command
+    parameters:
+      command: "cat ./output/mnist_provenance.json | jq '.'"
+      check: false
+    pause_after: true
+
+  # Cleanup Step
+  - name: "Cleanup Demo Files"
+    description: "Remove temporary files created during demo"
+    action: shell:command
+    parameters:
+      command: "rm -f classifier.onnx eval_results.json train-00000-of-00001.parquet test-00000-of-00001.parquet"
+      check: false
