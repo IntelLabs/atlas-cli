@@ -21,7 +21,7 @@
 //!
 //! ## Examples
 //!
-//! ### Basic hashing with default algorithm (SHA-256)
+//! ### Basic hashing with default algorithm (SHA-384)
 //! ```
 //! use atlas_cli::hash::calculate_hash;
 //!
@@ -52,13 +52,12 @@
 //! ```
 
 use crate::error::{Error, Result};
+use crate::utils::safe_open_file;
 use atlas_c2pa_lib::cose::HashAlgorithm;
 use sha2::{Digest, Sha256, Sha384, Sha512};
 use std::io::Read;
 use std::path::Path;
 use subtle::ConstantTimeEq;
-
-pub mod utils;
 
 /// Calculate SHA-384 hash of the given data
 ///
@@ -209,12 +208,12 @@ pub fn calculate_file_hash_with_algorithm(
     path: impl AsRef<Path>,
     algorithm: &HashAlgorithm,
 ) -> Result<String> {
-    let file = std::fs::File::open(path)?;
+    let file = safe_open_file(path.as_ref(), false)?;
 
     match algorithm {
         HashAlgorithm::Sha256 => hash_reader::<Sha256, _>(file),
-        HashAlgorithm::Sha384 => hash_reader::<Sha384, _>(file),
         HashAlgorithm::Sha512 => hash_reader::<Sha512, _>(file),
+        _ => hash_reader::<Sha384, _>(file),
     }
 }
 
@@ -494,7 +493,7 @@ pub fn algorithm_to_string(algorithm: &HashAlgorithm) -> &'static str {
 /// ```
 pub fn parse_algorithm(s: &str) -> Result<HashAlgorithm> {
     use std::str::FromStr;
-    HashAlgorithm::from_str(s).map_err(|e| Error::Validation(e))
+    HashAlgorithm::from_str(s).map_err(Error::Validation)
 }
 
 /// Internal helper to hash data from a reader using streaming

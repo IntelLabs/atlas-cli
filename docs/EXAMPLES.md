@@ -2,6 +2,11 @@
 
 This document provides examples and workflow patterns for using the Atlas CLI tool.
 
+## End-to-End Examples
+
+We provide a number of end-to-end Atlas workflow examples in the
+[/examples](../examples) directory,
+
 ## Basic Usage Examples
 
 ### Creating a Single Model Manifest

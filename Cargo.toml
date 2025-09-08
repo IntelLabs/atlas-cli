@@ -28,7 +28,7 @@ yaml = []
 with-tdx = ["tdx_workload_attestation/host-gcp-tdx"]
 
 [dependencies]
-atlas-c2pa-lib = { version = "0.1.1" }
+atlas-c2pa-lib = { version = "0.1.2" }
 
 # TDX
 tdx_workload_attestation = { version = "0.1.0", default-features = false }
@@ -43,15 +43,15 @@ lazy_static = "1.4"
 log = "0.4"
 openssl = "0.10.73"
 sha2 = "0.10"
-thiserror = "2.0.12"
+thiserror = "2.0.16"
 time = { version = "0.3", features = ["serde"] }
-uuid = { version = "1.17", features = ["v4"] }
+uuid = { version = "1.18", features = ["v4"] }
 walkdir = "2.4"
 zeroize = { version = "1.8", features = ["derive"] }
 
 # CLI and async/runtime
 clap = { version = "4.5", features = ["derive"] }
-tokio = "1.46.1"
+tokio = "1.47.1"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -60,8 +60,8 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 
 # HTTP client
-reqwest = { version = "0.12.22", features = ["blocking", "json"] }
+reqwest = { version = "0.12.23", features = ["blocking", "json"] }
 subtle = "2.6.1"
 
 [dev-dependencies]
-tempfile = "3.20.0"
+tempfile = "3.21.0"

@@ -20,12 +20,15 @@ fn test_mock_attestation() -> Result<()> {
     let report_json: Value = serde_json::from_str(&report)?;
 
     // Assert the report contains expected fields
-    assert_eq!(report_json["type"], "mock_attestation");
+    assert_eq!(report_json["report_type"], "mock_attestation");
     assert_eq!(report_json["platform"], "test-platform");
     assert!(report_json["timestamp"].is_string());
-    assert!(report_json["mock_data"].is_object());
-    assert_eq!(report_json["mock_data"]["version"], "1.0");
-    assert_eq!(report_json["mock_data"]["status"], "simulated");
+    assert_eq!(report_json["version"], "1.0");
+    assert_eq!(report_json["status"], "simulated");
+    assert_eq!(
+        report_json["message"],
+        "This is a mock attestation report for non-Linux or unsupported platforms"
+    );
 
     Ok(())
 }
@@ -49,7 +52,7 @@ fn test_platform_selection() -> Result<()> {
         assert_ne!(report_json["td_info"]["mrtd"].as_array(), None);
     } else {
         // Verify it's a mock report
-        assert_eq!(report_json["type"], "mock_attestation");
+        assert_eq!(report_json["report_type"], "mock_attestation");
     }
 
     Ok(())
