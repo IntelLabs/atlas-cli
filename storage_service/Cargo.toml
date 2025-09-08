@@ -19,6 +19,7 @@ name = "c2pa-transparency-log"
 path = "src/main.rs"
 
 [dependencies]
+atlas-common = { version = "0.1.0", features = ["hash", "c2pa", "validation"] }
 actix-web = "4.5"
 base64 = "0.22"
 bytes = "1.5"

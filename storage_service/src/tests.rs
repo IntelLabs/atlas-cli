@@ -1,21 +1,24 @@
 #[cfg(test)]
 mod tests {
-    use crate::hash::{hash_sha384, hash_with_algorithm, HashAlgorithm};
+    use atlas_common::hash::{
+        calculate_hash, calculate_hash_with_algorithm, verify_hash, HashAlgorithm, Hasher,
+    };
+    use atlas_common::validation::{ensure_c2pa_urn, validate_manifest_id};
+
     use crate::merkle_tree::{LogLeaf, MerkleTree};
     use crate::sign_data;
     use base64::{engine::general_purpose, Engine as _};
     use chrono::Utc;
     use ring::signature::Ed25519KeyPair;
 
-    // Helper function to hash a string
+    // Helper function to hash a string using atlas-common
     fn hash_string(data: &str) -> String {
-        let hash_bytes = hash_sha384(data.as_bytes());
-        general_purpose::STANDARD.encode(&hash_bytes)
+        calculate_hash(data.as_bytes())
     }
 
     #[actix_web::test]
     async fn test_hashing() {
-        // Test hash consistency
+        // Test hash consistency using atlas-common
         let data = "test data";
         let hash1 = hash_string(data);
         let hash2 = hash_string(data);
@@ -27,9 +30,9 @@ mod tests {
         let hash3 = hash_string("different data");
         assert_ne!(hash1, hash3);
 
-        // Test that we're using SHA384 (48 bytes = 64 base64 chars)
-        let raw_hash = hash_sha384(data.as_bytes());
-        assert_eq!(raw_hash.len(), 48); // SHA384 produces 48 bytes
+        // Test that we're using SHA384 (48 bytes = 96 hex chars)
+        let raw_hash = calculate_hash(data.as_bytes());
+        assert_eq!(raw_hash.len(), 96); // SHA384 produces 96 hex characters
     }
 
     #[actix_web::test]
@@ -89,7 +92,7 @@ mod tests {
         assert_eq!(proof.merkle_path.len(), 1); // Should have one sibling
         assert_eq!(proof.tree_size, 2);
 
-        // Verify the proof is valid using  tree method
+        // Verify the proof is valid
         assert!(tree.verify_inclusion_proof(&proof));
 
         // Test proof for second leaf
@@ -324,16 +327,135 @@ mod tests {
     async fn test_hash_algorithms() {
         let data = b"test data";
 
-        // Test SHA256
-        let sha256_hash = hash_with_algorithm(data, &HashAlgorithm::Sha256);
-        assert_eq!(sha256_hash.len(), 32); // SHA256 produces 32 bytes
+        // Test SHA256 using atlas-common
+        let sha256_hash = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256);
+        assert_eq!(sha256_hash.len(), 64); // SHA256 produces 64 hex chars
 
-        // Test SHA384
-        let sha384_hash = hash_with_algorithm(data, &HashAlgorithm::Sha384);
-        assert_eq!(sha384_hash.len(), 48); // SHA384 produces 48 bytes
+        // Test SHA384 (default) using atlas-common
+        let sha384_hash = calculate_hash(data);
+        assert_eq!(sha384_hash.len(), 96); // SHA384 produces 96 hex chars
+
+        // Test SHA512 using atlas-common
+        let sha512_hash = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha512);
+        assert_eq!(sha512_hash.len(), 128); // SHA512 produces 128 hex chars
 
         // Verify they produce different hashes
         assert_ne!(sha256_hash, sha384_hash);
+        assert_ne!(sha384_hash, sha512_hash);
+        assert_ne!(sha256_hash, sha512_hash);
+    }
+
+    #[actix_web::test]
+    async fn test_hash_verification() {
+        let data = b"test data for verification";
+
+        // Test default hash verification using atlas-common
+        let hash = calculate_hash(data);
+        assert!(verify_hash(data, &hash));
+        assert!(!verify_hash(b"different data", &hash));
+
+        // Test specific algorithm verification
+        let sha256_hash = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256);
+        assert!(atlas_common::hash::verify_hash_with_algorithm(
+            data,
+            &sha256_hash,
+            &HashAlgorithm::Sha256
+        ));
+        assert!(!atlas_common::hash::verify_hash_with_algorithm(
+            data,
+            &sha256_hash,
+            &HashAlgorithm::Sha384
+        ));
+    }
+
+    #[actix_web::test]
+    async fn test_hasher_trait() {
+        // Test the Hasher trait from atlas-common
+        let text = "test string";
+        let hash1 = text.hash(HashAlgorithm::Sha256);
+        let hash2 = text.to_string().hash(HashAlgorithm::Sha256);
+        let hash3 = text.as_bytes().hash(HashAlgorithm::Sha256);
+
+        assert_eq!(hash1, hash2);
+        assert_eq!(hash2, hash3);
+        assert_eq!(hash1.len(), 64); // SHA256
+    }
+
+    #[actix_web::test]
+    async fn test_hash_validation() {
+        // Test hash format validation using atlas-common
+
+        // Valid hashes
+        assert!(atlas_common::hash::validate_hash_format(&"a".repeat(64)).is_ok()); // SHA256
+        assert!(atlas_common::hash::validate_hash_format(&"b".repeat(96)).is_ok()); // SHA384
+        assert!(atlas_common::hash::validate_hash_format(&"c".repeat(128)).is_ok()); // SHA512
+
+        // Invalid hashes
+        assert!(atlas_common::hash::validate_hash_format(&"x".repeat(32)).is_err()); // Wrong length
+        assert!(atlas_common::hash::validate_hash_format(&"g".repeat(64)).is_err()); // Invalid char
+        assert!(atlas_common::hash::validate_hash_format("not-a-hash").is_err());
+    }
+
+    #[actix_web::test]
+    async fn test_hash_algorithm_detection() {
+        // Test algorithm detection using atlas-common
+        let sha256_hash = "a".repeat(64);
+        let sha384_hash = "b".repeat(96);
+        let sha512_hash = "c".repeat(128);
+
+        assert_eq!(
+            atlas_common::hash::detect_hash_algorithm(&sha256_hash),
+            HashAlgorithm::Sha256
+        );
+        assert_eq!(
+            atlas_common::hash::detect_hash_algorithm(&sha384_hash),
+            HashAlgorithm::Sha384
+        );
+        assert_eq!(
+            atlas_common::hash::detect_hash_algorithm(&sha512_hash),
+            HashAlgorithm::Sha512
+        );
+
+        // Invalid length defaults to SHA384
+        assert_eq!(
+            atlas_common::hash::detect_hash_algorithm(&"d".repeat(50)),
+            HashAlgorithm::Sha384
+        );
+    }
+
+    #[actix_web::test]
+    async fn test_manifest_id_validation() {
+        // Test manifest ID validation using atlas-common
+
+        // Valid IDs
+        assert!(validate_manifest_id("urn:c2pa:123e4567-e89b-12d3-a456-426614174000").is_ok());
+        assert!(validate_manifest_id("123e4567-e89b-12d3-a456-426614174000").is_ok());
+        assert!(validate_manifest_id("my-manifest-123").is_ok());
+        assert!(validate_manifest_id("manifest_456").is_ok());
+
+        // Invalid IDs
+        assert!(validate_manifest_id("").is_err());
+        assert!(validate_manifest_id("manifest with spaces").is_err());
+        assert!(validate_manifest_id("manifest#123").is_err());
+    }
+
+    #[actix_web::test]
+    async fn test_c2pa_urn_utilities() {
+        // Test C2PA URN utilities from atlas-common
+
+        // Test ensure_c2pa_urn
+        let plain_id = "my-model-123";
+        let urn = ensure_c2pa_urn(plain_id);
+        assert!(urn.starts_with("urn:c2pa:"));
+
+        // Valid UUID should be wrapped
+        let uuid = "123e4567-e89b-12d3-a456-426614174000";
+        let wrapped = ensure_c2pa_urn(uuid);
+        assert_eq!(wrapped, format!("urn:c2pa:{}", uuid));
+
+        // Already valid URN should be unchanged
+        let existing_urn = "urn:c2pa:123e4567-e89b-12d3-a456-426614174000";
+        assert_eq!(ensure_c2pa_urn(existing_urn), existing_urn);
     }
 
     #[actix_web::test]
@@ -511,20 +633,14 @@ mod tests {
         // Test various tampering scenarios for inclusion proofs
         let original_proof = tree.generate_inclusion_proof("id_3").unwrap();
 
-        // Test 1: Tamper with leaf hash
-        let mut tampered = original_proof.clone();
-        tampered.leaf_hash = "tampered_leaf_hash".to_string();
-        // Note: Our verification doesn't rely on the provided leaf_hash, it computes it
-        // So this particular tampering won't be detected, but that's actually correct behavior
-
-        // Test 2: Tamper with path elements
+        // Test 1: Tamper with path elements
         let mut tampered = original_proof.clone();
         if !tampered.merkle_path.is_empty() {
             tampered.merkle_path[0] = format!("tampered_{}", tampered.merkle_path[0]);
             assert!(!tree.verify_inclusion_proof(&tampered));
         }
 
-        // Test 3: Swap path elements
+        // Test 2: Swap path elements
         let mut tampered = original_proof.clone();
         if tampered.merkle_path.len() > 1 {
             tampered.merkle_path.swap(0, 1);
@@ -534,7 +650,7 @@ mod tests {
         // Test consistency proof tampering
         let consistency_proof = tree.generate_consistency_proof(4, 8).unwrap();
 
-        // Test 4: Tamper with proof hashes
+        // Test 3: Tamper with proof hashes
         let mut tampered = consistency_proof.clone();
         if !tampered.proof_hashes.is_empty() {
             tampered.proof_hashes[0] = "tampered_hash".to_string();
@@ -543,7 +659,7 @@ mod tests {
             let _ = tree.verify_consistency_proof(&tampered);
         }
 
-        // Test 5: Modify sizes
+        // Test 4: Modify sizes
         let mut tampered = consistency_proof.clone();
         tampered.old_size = 99;
         assert!(!tree.verify_consistency_proof(&tampered));
@@ -551,5 +667,26 @@ mod tests {
         let mut tampered = consistency_proof.clone();
         tampered.new_size = 1;
         assert!(!tree.verify_consistency_proof(&tampered));
+    }
+
+    #[actix_web::test]
+    async fn test_atlas_common_integration() {
+        // Test that our hashing matches atlas-common's hashing exactly
+        let test_data = b"integration test data";
+
+        //  hash_binary function should match atlas-common's calculate_hash
+        let our_hash = crate::hash_binary(test_data);
+        let atlas_hash = calculate_hash(test_data);
+
+        assert_eq!(our_hash, atlas_hash);
+        assert_eq!(our_hash.len(), 96); // SHA384
+
+        // Test hash verification
+        assert!(verify_hash(test_data, &our_hash));
+
+        // Test with different algorithms
+        let sha256_hash = calculate_hash_with_algorithm(test_data, &HashAlgorithm::Sha256);
+        assert_eq!(sha256_hash.len(), 64);
+        assert_ne!(sha256_hash, our_hash);
     }
 }

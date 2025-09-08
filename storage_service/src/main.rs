@@ -7,11 +7,12 @@ use mongodb::{Client, Database};
 use ring::signature::Ed25519KeyPair;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+
+use atlas_common::hash::calculate_hash;
+
 // Import merkle tree modules from local modules
-mod hash;
 mod merkle_tree;
 
-use hash::hash_sha384;
 use merkle_tree::{ConsistencyProof, InclusionProof, LogLeaf, MerkleProof, MerkleTree};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -24,7 +25,6 @@ pub enum ContentFormat {
     Binary,
 }
 
-// Default to json
 impl Default for ContentFormat {
     fn default() -> Self {
         ContentFormat::JSON
@@ -71,14 +71,11 @@ pub fn detect_content_type(req: &HttpRequest) -> ContentFormat {
             Err(_) => {}
         }
     }
-    // Default to JSON
     ContentFormat::JSON
 }
 
-// Hash binary data using the hash module (SHA384 by default)
 pub fn hash_binary(data: &[u8]) -> String {
-    let hash_bytes = hash_sha384(data);
-    general_purpose::STANDARD.encode(&hash_bytes)
+    calculate_hash(data) //   uses SHA384 by default
 }
 
 // Sign binary data
@@ -87,15 +84,8 @@ pub fn sign_data(key_pair: &Ed25519KeyPair, data: &[u8]) -> String {
     general_purpose::STANDARD.encode(signature.as_ref())
 }
 
-// Validate manifest ID format
 fn is_valid_manifest_id(id: &str) -> bool {
-    // Allow alphanumeric, hyphens, underscores, and dots
-    // Limit length to prevent abuse
-    id.len() <= 256
-        && id.len() > 0
-        && id
-            .chars()
-            .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.')
+    atlas_common::validation::validate_manifest_id(id).is_ok()
 }
 
 // Store manifest with content type support
@@ -115,12 +105,11 @@ async fn store_manifest(
         }));
     }
 
-    // Validate manifest_id format
     let manifest_id = path.to_string();
     if !is_valid_manifest_id(&manifest_id) {
         return HttpResponse::BadRequest().json(serde_json::json!({
             "error": "Invalid manifest ID format",
-            "allowed": "alphanumeric, hyphens, underscores, dots; max 256 chars"
+            "details": "Must be a valid C2PA URN, UUID, or alphanumeric string"
         }));
     }
 
@@ -135,13 +124,10 @@ async fn store_manifest(
     // Detect content format
     let content_format = detect_content_type(&req);
 
-    // Create hash and signature from raw content
     let content_hash = hash_binary(&bytes);
     let signature = sign_data(&state.key_pair, &content_hash.as_bytes());
 
     // Get next sequence number
-    // The sequence number provides a monotonically increasing index for each manifest,
-    // ensuring append-only behavior and enabling efficient range queries and consistency proofs
     let sequence_count = collection.count_documents(None, None).await.unwrap_or(0);
     let sequence_number = sequence_count + 1;
 
@@ -180,7 +166,6 @@ async fn store_manifest(
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
 
-                    // Use the manifest_type from JSON if found and not overridden by query parameter
                     if let Some(mt) = json_manifest_type {
                         if manifest_type_param.is_none() {
                             entry.manifest_type = mt;
@@ -197,11 +182,9 @@ async fn store_manifest(
             }
         }
         ContentFormat::CBOR => {
-            // Store as base64 encoded string
             let encoded = general_purpose::STANDARD.encode(&bytes);
             entry.manifest_cbor = Some(encoded);
 
-            // Try to decode CBOR to extract manifest_type if possible
             match serde_cbor::from_slice::<serde_json::Value>(&bytes) {
                 Ok(cbor_value) => {
                     let cbor_manifest_type = cbor_value
@@ -209,7 +192,6 @@ async fn store_manifest(
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
 
-                    // Use the manifest_type from CBOR if found and not overridden by query parameter
                     if let Some(mt) = cbor_manifest_type {
                         if manifest_type_param.is_none() {
                             entry.manifest_type = mt;
@@ -227,11 +209,9 @@ async fn store_manifest(
             }
         }
         ContentFormat::Binary => {
-            // Store as base64 encoded string
             let encoded = general_purpose::STANDARD.encode(&bytes);
             entry.manifest_binary = Some(encoded);
 
-            // Use the manifest_type from query parameter or default
             if manifest_type_param.is_none() {
                 entry.manifest_type = "binary_manifest".to_string();
             }
@@ -494,7 +474,6 @@ async fn get_manifest(
 async fn get_inclusion_proof(state: web::Data<AppState>, path: web::Path<String>) -> HttpResponse {
     let manifest_id = path.into_inner();
 
-    // Validate manifest_id
     if !is_valid_manifest_id(&manifest_id) {
         return HttpResponse::BadRequest().json(serde_json::json!({
             "error": "Invalid manifest ID format"
@@ -535,7 +514,7 @@ async fn verify_proof(
     HttpResponse::Ok().json(serde_json::json!({
         "valid": is_valid,
         "manifest_id": proof.manifest_id,
-        "proof_description": proof.describe()
+        "proof_description": (&*proof as &dyn MerkleProof).describe()
     }))
 }
 
@@ -569,7 +548,7 @@ async fn get_consistency_proof(
     match tree.generate_consistency_proof(query.old_size, query.new_size) {
         Some(proof) => HttpResponse::Ok().json(serde_json::json!({
             "proof": proof,
-            "description": proof.describe()
+            "description": (&proof as &dyn MerkleProof).describe()
         })),
         None => HttpResponse::NotFound().json(serde_json::json!({
             "error": "Cannot generate consistency proof",
