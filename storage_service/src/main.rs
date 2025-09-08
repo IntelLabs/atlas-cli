@@ -7,13 +7,12 @@ use mongodb::{Client, Database};
 use ring::signature::Ed25519KeyPair;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-
 // Import merkle tree modules from local modules
 mod hash;
 mod merkle_tree;
 
 use hash::hash_sha384;
-use merkle_tree::{ConsistencyProof, InclusionProof, LogLeaf, MerkleTree};
+use merkle_tree::{ConsistencyProof, InclusionProof, LogLeaf, MerkleProof, MerkleTree};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum ContentFormat {
@@ -108,7 +107,7 @@ async fn store_manifest(
     query: web::Query<ManifestQuery>,
 ) -> HttpResponse {
     // Validate input size
-    const MAX_MANIFEST_SIZE: usize = 10 * 1024 * 1024; // 10MB TODO: check if we even need 10MB
+    const MAX_MANIFEST_SIZE: usize = 10 * 1024 * 1024; // 10MB
     if bytes.len() > MAX_MANIFEST_SIZE {
         return HttpResponse::BadRequest().json(serde_json::json!({
             "error": "Manifest too large",
@@ -293,6 +292,7 @@ async fn persist_merkle_tree(
     collection.delete_many(mongodb::bson::doc! {}, None).await?;
 
     // Store the current tree state (leaves and metadata)
+    // Note: Root hash is recomputed from leaves during load for integrity
     let tree_state = serde_json::json!({
         "leaves": tree.leaves(),
         "tree_size": tree.size(),
@@ -310,6 +310,7 @@ async fn load_merkle_tree(db: &Database) -> MerkleTree {
     match collection.find_one(None, None).await {
         Ok(Some(state)) => {
             if let Ok(leaves) = serde_json::from_value::<Vec<LogLeaf>>(state["leaves"].clone()) {
+                // Recompute root hash from leaves to ensure integrity
                 return MerkleTree::from_leaves(leaves);
             }
         }
@@ -585,21 +586,14 @@ async fn verify_consistency_proof(
     proof: web::Json<ConsistencyProof>,
 ) -> HttpResponse {
     let tree = state.merkle_tree.read();
-
-    let is_valid = tree.verify_consistency_proof(
-        proof.old_size,
-        proof.new_size,
-        &proof.old_root,
-        &proof.new_root,
-        &proof.proof_hashes,
-    );
+    let is_valid = tree.verify_consistency_proof(&proof);
 
     HttpResponse::Ok().json(serde_json::json!({
         "valid": is_valid,
         "old_size": proof.old_size,
         "new_size": proof.new_size,
         "proof_elements": proof.proof_hashes.len(),
-        "description": proof.describe()
+        "description": (&*proof as &dyn MerkleProof).describe()
     }))
 }
 
@@ -607,10 +601,24 @@ async fn verify_consistency_proof(
 async fn get_tree_stats(state: web::Data<AppState>) -> HttpResponse {
     let tree = state.merkle_tree.read();
 
+    // Calculate additional statistics
+    let total_leaves = tree.size();
+    let has_root = tree.root_hash().is_some();
+
+    // Estimate tree depth (log2 of size, rounded up)
+    let estimated_depth = if total_leaves > 0 {
+        (total_leaves as f64).log2().ceil() as usize
+    } else {
+        0
+    };
+
     HttpResponse::Ok().json(serde_json::json!({
-        "current_size": tree.size(),
+        "current_size": total_leaves,
         "root_hash": tree.root_hash(),
+        "estimated_depth": estimated_depth,
+        "has_root": has_root,
         "timestamp": Utc::now(),
+        "tree_health": if has_root { "healthy" } else { "empty" }
     }))
 }
 

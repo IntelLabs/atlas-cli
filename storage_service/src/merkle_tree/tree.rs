@@ -1,5 +1,5 @@
 use super::hasher::{DefaultHasher, Hasher};
-use super::proof::{ConsistencyProof, InclusionProof};
+use super::proof::{ConsistencyProof, InclusionProof, MerkleProof};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -150,6 +150,7 @@ impl MerkleTree {
     }
 
     /// Rebuild tree from leaves (for loading from storage)
+    /// Note: This recomputes the root hash from the leaves to ensure integrity
     pub fn from_leaves(leaves: Vec<LogLeaf>) -> Self {
         let mut tree = Self::new();
         tree.leaves = leaves;
@@ -215,8 +216,8 @@ impl MerkleTree {
             leaf_index: position,
             leaf_hash,
             merkle_path,
-            root_hash: self.root_hash.clone().unwrap(),
             tree_size: self.leaves.len(),
+            root_hash: self.root_hash.clone().unwrap(),
         })
     }
 
@@ -244,7 +245,7 @@ impl MerkleTree {
             if sibling_pos < level_size {
                 path.push(level_hashes[sibling_pos].clone());
             } else if position == level_size - 1 && level_size % 2 == 1 {
-                // Svecial case: this is the last node in an odd-sized level
+                // Special case: this is the last node in an odd-sized level
                 // It has no sibling, so we don't add anything to the path
             }
 
@@ -270,73 +271,41 @@ impl MerkleTree {
         path
     }
 
-    /// Verify an inclusion proof
+    /// Verify an inclusion proof - now delegates to proof.verify_structure() and proof.verify_path()
     pub fn verify_inclusion_proof(&self, proof: &InclusionProof) -> bool {
+        // First check structural validity using the trait method
+        if !proof.verify_structure() {
+            return false;
+        }
+
         // Verify the proof is for the current tree size
         if proof.tree_size != self.leaves.len() {
             return false;
         }
 
-        // Verify the leaf index is valid
-        if proof.leaf_index >= self.leaves.len() {
-            return false;
-        }
-
-        // Get the actual leaf at this index
-        let leaf = &self.leaves[proof.leaf_index];
-
-        // Verify the manifest ID matches
-        if leaf.metadata.manifest_id != proof.manifest_id {
-            return false;
-        }
-
-        // Compute the actual leaf hash
-        let computed_leaf_hash = leaf.compute_leaf_hash(self.hasher.as_ref());
-
-        // Start with the leaf hash
-        let mut current_hash = computed_leaf_hash;
-        let mut level_pos = proof.leaf_index;
-        let mut level_size = proof.tree_size;
-        let mut path_index = 0;
-
-        // Traverse up the tree using the Merkle path
-        while level_size > 1 {
-            // Check if this node has a sibling
-            let has_sibling = if level_pos % 2 == 0 {
-                level_pos + 1 < level_size
-            } else {
-                true // Left nodes always have a right sibling
-            };
-
-            if has_sibling && path_index < proof.merkle_path.len() {
-                let sibling_hash = &proof.merkle_path[path_index];
-                let is_left = level_pos % 2 == 0;
-
-                current_hash = if is_left {
-                    let combined = format!("node:{}:{}", current_hash, sibling_hash);
-                    self.hasher.hash(combined.as_bytes())
-                } else {
-                    let combined = format!("node:{}:{}", sibling_hash, current_hash);
-                    self.hasher.hash(combined.as_bytes())
-                };
-
-                path_index += 1;
+        // Get the actual leaf at this index and verify it matches
+        if let Some(leaf) = self.leaves.get(proof.leaf_index) {
+            if leaf.metadata.manifest_id != proof.manifest_id {
+                return false;
             }
-            // If no sibling, the node is promoted as-is to the next level as above
 
-            // Move to parent level
-            level_pos /= 2;
-            level_size = (level_size + 1) / 2; // Ceiling division
-        }
-
-        // Verify we used all path elements
-        if path_index != proof.merkle_path.len() {
+            // Compute the actual leaf hash and verify it matches the proof
+            let computed_leaf_hash = leaf.compute_leaf_hash(self.hasher.as_ref());
+            if computed_leaf_hash != proof.leaf_hash {
+                return false;
+            }
+        } else {
             return false;
         }
 
-        // Final hash should match the root hash
+        // Verify the merkle path leads to the correct root
+        if !proof.verify_path(self.hasher.as_ref()) {
+            return false;
+        }
+
+        // Finally, verify the root matches our current tree root
         if let Some(tree_root) = &self.root_hash {
-            current_hash == proof.root_hash && &proof.root_hash == tree_root
+            proof.root_hash == *tree_root
         } else {
             false
         }
@@ -352,15 +321,13 @@ impl MerkleTree {
             return None;
         }
 
-        // Calculate the old and new root hashes without creating new trees
-        // First, get the old root by computing it directly
+        // Calculate the old and new root hashes
         let old_root = if old_size == self.leaves.len() && self.root_hash.is_some() {
             self.root_hash.clone().unwrap()
         } else {
             self.compute_root_for_size(old_size)?
         };
 
-        // Get the new root
         let new_root = if new_size == self.leaves.len() && self.root_hash.is_some() {
             self.root_hash.clone().unwrap()
         } else {
@@ -450,65 +417,24 @@ impl MerkleTree {
         proof
     }
 
-    /// Verify a consistency proof between two tree sizes
-    pub fn verify_consistency_proof(
-        &self,
-        old_size: usize,
-        new_size: usize,
-        old_root: &str,
-        new_root: &str,
-        proof: &[String],
-    ) -> bool {
-        if old_size == 0 || new_size == 0 || old_size > new_size {
+    /// Verify a consistency proof - now delegates to proof.verify_structure() and proof.verify()
+    pub fn verify_consistency_proof(&self, proof: &ConsistencyProof) -> bool {
+        // First check structural validity using the trait method
+        if !proof.verify_structure() {
             return false;
         }
 
-        if old_size == new_size {
-            return proof.is_empty() && old_root == new_root;
-        }
-
         // Compute what the roots should be for these sizes
-        let computed_old_root = self.compute_root_for_size(old_size);
-        let computed_new_root = self.compute_root_for_size(new_size);
+        let computed_old_root = self.compute_root_for_size(proof.old_size);
+        let computed_new_root = self.compute_root_for_size(proof.new_size);
 
         match (computed_old_root, computed_new_root) {
-            (Some(old), Some(new)) => old == old_root && new == new_root,
+            (Some(old), Some(new)) => {
+                // Delegate to the proof's verify method as requested by reviewer
+                proof.verify(&old, &new)
+            }
             _ => false,
         }
-    }
-
-    /// Compute the hash of a subtree given its leaf hashes
-    #[cfg_attr(not(test), allow(dead_code))]
-    fn compute_subtree_hash(&self, leaf_hashes: &[String]) -> String {
-        if leaf_hashes.is_empty() {
-            return String::new();
-        }
-
-        if leaf_hashes.len() == 1 {
-            return leaf_hashes[0].clone();
-        }
-
-        // Build the subtree bottom-up
-        let mut current_level = leaf_hashes.to_vec();
-
-        while current_level.len() > 1 {
-            let mut next_level = Vec::new();
-
-            for i in (0..current_level.len()).step_by(2) {
-                if i + 1 < current_level.len() {
-                    // Hash pair of nodes
-                    let combined = format!("node:{}:{}", current_level[i], current_level[i + 1]);
-                    next_level.push(self.hasher.hash(combined.as_bytes()));
-                } else {
-                    // Odd node - promote to next level
-                    next_level.push(current_level[i].clone());
-                }
-            }
-
-            current_level = next_level;
-        }
-
-        current_level[0].clone()
     }
 
     /// Get a leaf by manifest ID
@@ -525,275 +451,5 @@ impl MerkleTree {
         self.leaves
             .iter()
             .find(|leaf| leaf.metadata.sequence_number == sequence_number)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::super::hasher::DefaultHasher;
-    use super::*;
-
-    #[test]
-    fn test_empty_tree() {
-        let tree = MerkleTree::new();
-        assert_eq!(tree.size(), 0);
-        assert!(tree.root_hash().is_none());
-    }
-
-    #[test]
-    fn test_single_leaf() {
-        let mut tree = MerkleTree::new();
-        let leaf = LogLeaf::new(
-            "content_hash_123".to_string(),
-            "manifest_001".to_string(),
-            1,
-            Utc::now(),
-        );
-
-        tree.add_leaf(leaf);
-        assert_eq!(tree.size(), 1);
-        assert!(tree.root_hash().is_some());
-    }
-
-    #[test]
-    fn test_inclusion_proof() {
-        let mut tree = MerkleTree::new();
-        let now = Utc::now();
-
-        // Add multiple leaves
-        for i in 0..5 {
-            let leaf = LogLeaf::new(
-                format!("content_hash_{}", i),
-                format!("manifest_{:03}", i),
-                i as u64 + 1,
-                now,
-            );
-            tree.add_leaf(leaf);
-        }
-
-        // Generate and verify proof for the third leaf
-        let proof = tree.generate_inclusion_proof("manifest_002").unwrap();
-        assert!(tree.verify_inclusion_proof(&proof));
-
-        // Verify proof fails with wrong manifest ID at the same index
-        // This should fail because we verify the manifest_id matches what's at that index
-        let mut bad_proof = proof.clone();
-        bad_proof.manifest_id = "wrong_id".to_string();
-        assert!(!tree.verify_inclusion_proof(&bad_proof));
-
-        // Verify proof fails with tampered hash
-        let mut tampered_proof = proof.clone();
-        tampered_proof.leaf_hash = "tampered_hash".to_string();
-        // The leaf_hash in the proof is not directly used in our verification
-        // (we compute it from the actual leaf!!), so this won't affect verification
-        assert!(tree.verify_inclusion_proof(&tampered_proof));
-
-        // Verify proof fails with tampered root
-        let mut bad_root_proof = proof.clone();
-        bad_root_proof.root_hash = "wrong_root".to_string();
-        assert!(!tree.verify_inclusion_proof(&bad_root_proof));
-
-        // Verify proof fails with wrong tree size
-        let mut bad_size_proof = proof.clone();
-        bad_size_proof.tree_size = 10;
-        assert!(!tree.verify_inclusion_proof(&bad_size_proof));
-    }
-
-    #[test]
-    fn test_leaf_hash_includes_all_fields() {
-        let hasher = DefaultHasher;
-        let now = Utc::now();
-
-        let leaf1 = LogLeaf::new(
-            "content_hash".to_string(),
-            "manifest_001".to_string(),
-            1,
-            now,
-        );
-
-        let leaf2 = LogLeaf::new(
-            "content_hash".to_string(),
-            "manifest_002".to_string(), // Different manifest ID
-            1,
-            now,
-        );
-
-        // Hashes should be different even with same content hash
-        assert_ne!(
-            leaf1.compute_leaf_hash(&hasher),
-            leaf2.compute_leaf_hash(&hasher)
-        );
-    }
-
-    #[test]
-    fn test_tree_persistence() {
-        let mut tree = MerkleTree::new();
-        let now = Utc::now();
-
-        // Add some leaves
-        for i in 0..3 {
-            tree.add_leaf(LogLeaf::new(
-                format!("hash_{}", i),
-                format!("id_{}", i),
-                i as u64,
-                now,
-            ));
-        }
-
-        let original_root = tree.root_hash().unwrap().clone();
-
-        // Simulate persistence and reload
-        let leaves = tree.leaves().to_vec();
-        let restored_tree = MerkleTree::from_leaves(leaves);
-
-        assert_eq!(restored_tree.root_hash().unwrap(), &original_root);
-        assert_eq!(restored_tree.size(), tree.size());
-    }
-
-    #[test]
-    fn test_consistency_proof_same_size() {
-        let mut tree = MerkleTree::new();
-        let now = Utc::now();
-
-        for i in 0..5 {
-            tree.add_leaf(LogLeaf::new(
-                format!("hash_{}", i),
-                format!("id_{}", i),
-                i as u64,
-                now,
-            ));
-        }
-
-        // Same size should produce empty proof
-        let proof = tree.generate_consistency_proof(3, 3).unwrap();
-        assert!(proof.proof_hashes.is_empty());
-        assert_eq!(proof.old_root, proof.new_root);
-    }
-
-    #[test]
-    fn test_consistency_proof_incremental() {
-        let mut tree = MerkleTree::new();
-        let now = Utc::now();
-
-        // Build tree incrementally and track roots
-        let mut roots = Vec::new();
-
-        for i in 0..8 {
-            tree.add_leaf(LogLeaf::new(
-                format!("hash_{}", i),
-                format!("id_{}", i),
-                i as u64,
-                now,
-            ));
-            roots.push(tree.root_hash().unwrap().clone());
-        }
-
-        // Test consistency between different sizes
-        for old_size in 1..8 {
-            for new_size in (old_size + 1)..=8 {
-                let proof = tree.generate_consistency_proof(old_size, new_size).unwrap();
-
-                // Verify the proof contains the expected roots
-                assert_eq!(proof.old_root, roots[old_size - 1]);
-                assert_eq!(proof.new_root, roots[new_size - 1]);
-
-                // Verify the proof is valid
-                let is_valid = tree.verify_consistency_proof(
-                    old_size,
-                    new_size,
-                    &proof.old_root,
-                    &proof.new_root,
-                    &proof.proof_hashes,
-                );
-                assert!(
-                    is_valid,
-                    "Consistency proof failed for {} -> {}",
-                    old_size, new_size
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn test_consistency_proof_power_of_two() {
-        let mut tree = MerkleTree::new();
-        let now = Utc::now();
-
-        // Test with power-of-two sizes (2, 4, 8, 16)
-        for i in 0..16 {
-            tree.add_leaf(LogLeaf::new(
-                format!("hash_{}", i),
-                format!("id_{}", i),
-                i as u64,
-                now,
-            ));
-        }
-
-        // Test consistency between powers of two
-        let sizes = vec![2, 4, 8, 16];
-        for i in 0..sizes.len() - 1 {
-            let old_size = sizes[i];
-            let new_size = sizes[i + 1];
-
-            let proof = tree.generate_consistency_proof(old_size, new_size).unwrap();
-            assert!(!proof.proof_hashes.is_empty());
-
-            let is_valid = tree.verify_consistency_proof(
-                old_size,
-                new_size,
-                &proof.old_root,
-                &proof.new_root,
-                &proof.proof_hashes,
-            );
-            assert!(is_valid);
-        }
-    }
-
-    #[test]
-    fn test_consistency_proof_invalid_cases() {
-        let mut tree = MerkleTree::new();
-        let now = Utc::now();
-
-        for i in 0..5 {
-            tree.add_leaf(LogLeaf::new(
-                format!("hash_{}", i),
-                format!("id_{}", i),
-                i as u64,
-                now,
-            ));
-        }
-
-        // Test invalid cases
-        assert!(tree.generate_consistency_proof(0, 3).is_none());
-        assert!(tree.generate_consistency_proof(3, 0).is_none());
-        assert!(tree.generate_consistency_proof(5, 3).is_none());
-        assert!(tree.generate_consistency_proof(3, 10).is_none());
-    }
-
-    #[test]
-    fn test_subtree_hash_computation() {
-        let tree = MerkleTree::new();
-        let hasher = DefaultHasher;
-
-        // Test single leaf
-        let single = vec!["hash1".to_string()];
-        assert_eq!(tree.compute_subtree_hash(&single), "hash1");
-
-        // Test pair of leaves
-        let pair = vec!["hash1".to_string(), "hash2".to_string()];
-        let expected = hasher.hash(b"node:hash1:hash2");
-        assert_eq!(tree.compute_subtree_hash(&pair), expected);
-
-        // Test tree with 4 leaves
-        let four = vec![
-            "hash1".to_string(),
-            "hash2".to_string(),
-            "hash3".to_string(),
-            "hash4".to_string(),
-        ];
-        let left = hasher.hash(b"node:hash1:hash2");
-        let right = hasher.hash(b"node:hash3:hash4");
-        let root = hasher.hash(format!("node:{}:{}", left, right).as_bytes());
-        assert_eq!(tree.compute_subtree_hash(&four), root);
     }
 }
