@@ -1,5 +1,5 @@
 use actix_web::{http::header, web, App, HttpRequest, HttpResponse, HttpServer};
-use base64::{engine::general_purpose, Engine as _};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use log::{debug, error, info};
@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use atlas_common::hash::calculate_hash;
+use atlas_common::validation::validate_manifest_id;
 
 // Import merkle tree modules from local modules
 mod merkle_tree;
@@ -75,17 +76,17 @@ pub fn detect_content_type(req: &HttpRequest) -> ContentFormat {
 }
 
 pub fn hash_binary(data: &[u8]) -> String {
-    calculate_hash(data) //   uses SHA384 by default
+    calculate_hash(data)
 }
 
 // Sign binary data
 pub fn sign_data(key_pair: &Ed25519KeyPair, data: &[u8]) -> String {
     let signature = key_pair.sign(data);
-    general_purpose::STANDARD.encode(signature.as_ref())
+    STANDARD.encode(signature.as_ref())
 }
 
 fn is_valid_manifest_id(id: &str) -> bool {
-    atlas_common::validation::validate_manifest_id(id).is_ok()
+    validate_manifest_id(id).is_ok()
 }
 
 // Store manifest with content type support
@@ -182,7 +183,7 @@ async fn store_manifest(
             }
         }
         ContentFormat::CBOR => {
-            let encoded = general_purpose::STANDARD.encode(&bytes);
+            let encoded = STANDARD.encode(&bytes);
             entry.manifest_cbor = Some(encoded);
 
             match serde_cbor::from_slice::<serde_json::Value>(&bytes) {
@@ -209,7 +210,7 @@ async fn store_manifest(
             }
         }
         ContentFormat::Binary => {
-            let encoded = general_purpose::STANDARD.encode(&bytes);
+            let encoded = STANDARD.encode(&bytes);
             entry.manifest_binary = Some(encoded);
 
             if manifest_type_param.is_none() {
@@ -437,7 +438,7 @@ async fn get_manifest(
             match manifest.content_format {
                 ContentFormat::CBOR if accept_cbor => {
                     if let Some(ref cbor_data) = manifest.manifest_cbor {
-                        if let Ok(decoded) = general_purpose::STANDARD.decode(cbor_data) {
+                        if let Ok(decoded) = STANDARD.decode(cbor_data) {
                             return HttpResponse::Ok()
                                 .content_type("application/cbor")
                                 .body(decoded);
@@ -446,7 +447,7 @@ async fn get_manifest(
                 }
                 ContentFormat::Binary => {
                     if let Some(ref binary_data) = manifest.manifest_binary {
-                        if let Ok(decoded) = general_purpose::STANDARD.decode(binary_data) {
+                        if let Ok(decoded) = STANDARD.decode(binary_data) {
                             return HttpResponse::Ok()
                                 .content_type("application/octet-stream")
                                 .body(decoded);

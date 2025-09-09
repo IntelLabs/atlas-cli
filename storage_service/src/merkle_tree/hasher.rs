@@ -1,4 +1,4 @@
-use atlas_common::hash::{calculate_hash, HashAlgorithm};
+use atlas_common::hash::{calculate_hash, calculate_hash_with_algorithm, HashAlgorithm};
 use std::fmt::Debug;
 
 /// Trait for hashing functionality
@@ -24,6 +24,6 @@ pub struct Sha256Hasher;
 #[allow(dead_code)]
 impl Hasher for Sha256Hasher {
     fn hash(&self, data: &[u8]) -> String {
-        atlas_common::hash::calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256)
+        calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256)
     }
 }

@@ -1,15 +1,18 @@
 #[cfg(test)]
 mod tests {
+    use actix_web;
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    use chrono::Utc;
+    use ring::signature::Ed25519KeyPair;
+
     use atlas_common::hash::{
-        calculate_hash, calculate_hash_with_algorithm, verify_hash, HashAlgorithm, Hasher,
+        calculate_hash, calculate_hash_with_algorithm, detect_hash_algorithm, validate_hash_format,
+        verify_hash, verify_hash_with_algorithm, HashAlgorithm, Hasher,
     };
     use atlas_common::validation::{ensure_c2pa_urn, validate_manifest_id};
 
     use crate::merkle_tree::{LogLeaf, MerkleTree};
     use crate::sign_data;
-    use base64::{engine::general_purpose, Engine as _};
-    use chrono::Utc;
-    use ring::signature::Ed25519KeyPair;
 
     // Helper function to hash a string using atlas-common
     fn hash_string(data: &str) -> String {
@@ -51,7 +54,7 @@ mod tests {
         assert!(!signature.is_empty());
 
         // Ed25519 signatures are 64 bytes, which is 88 chars in base64 (including padding)
-        let decoded = general_purpose::STANDARD.decode(&signature).unwrap();
+        let decoded = STANDARD.decode(&signature).unwrap();
         assert_eq!(decoded.len(), 64);
     }
 
@@ -356,12 +359,12 @@ mod tests {
 
         // Test specific algorithm verification
         let sha256_hash = calculate_hash_with_algorithm(data, &HashAlgorithm::Sha256);
-        assert!(atlas_common::hash::verify_hash_with_algorithm(
+        assert!(verify_hash_with_algorithm(
             data,
             &sha256_hash,
             &HashAlgorithm::Sha256
         ));
-        assert!(!atlas_common::hash::verify_hash_with_algorithm(
+        assert!(!verify_hash_with_algorithm(
             data,
             &sha256_hash,
             &HashAlgorithm::Sha384
@@ -386,14 +389,14 @@ mod tests {
         // Test hash format validation using atlas-common
 
         // Valid hashes
-        assert!(atlas_common::hash::validate_hash_format(&"a".repeat(64)).is_ok()); // SHA256
-        assert!(atlas_common::hash::validate_hash_format(&"b".repeat(96)).is_ok()); // SHA384
-        assert!(atlas_common::hash::validate_hash_format(&"c".repeat(128)).is_ok()); // SHA512
+        assert!(validate_hash_format(&"a".repeat(64)).is_ok()); // SHA256
+        assert!(validate_hash_format(&"b".repeat(96)).is_ok()); // SHA384
+        assert!(validate_hash_format(&"c".repeat(128)).is_ok()); // SHA512
 
         // Invalid hashes
-        assert!(atlas_common::hash::validate_hash_format(&"x".repeat(32)).is_err()); // Wrong length
-        assert!(atlas_common::hash::validate_hash_format(&"g".repeat(64)).is_err()); // Invalid char
-        assert!(atlas_common::hash::validate_hash_format("not-a-hash").is_err());
+        assert!(validate_hash_format(&"x".repeat(32)).is_err()); // Wrong length
+        assert!(validate_hash_format(&"g".repeat(64)).is_err()); // Invalid char
+        assert!(validate_hash_format("not-a-hash").is_err());
     }
 
     #[actix_web::test]
@@ -403,22 +406,13 @@ mod tests {
         let sha384_hash = "b".repeat(96);
         let sha512_hash = "c".repeat(128);
 
-        assert_eq!(
-            atlas_common::hash::detect_hash_algorithm(&sha256_hash),
-            HashAlgorithm::Sha256
-        );
-        assert_eq!(
-            atlas_common::hash::detect_hash_algorithm(&sha384_hash),
-            HashAlgorithm::Sha384
-        );
-        assert_eq!(
-            atlas_common::hash::detect_hash_algorithm(&sha512_hash),
-            HashAlgorithm::Sha512
-        );
+        assert_eq!(detect_hash_algorithm(&sha256_hash), HashAlgorithm::Sha256);
+        assert_eq!(detect_hash_algorithm(&sha384_hash), HashAlgorithm::Sha384);
+        assert_eq!(detect_hash_algorithm(&sha512_hash), HashAlgorithm::Sha512);
 
         // Invalid length defaults to SHA384
         assert_eq!(
-            atlas_common::hash::detect_hash_algorithm(&"d".repeat(50)),
+            detect_hash_algorithm(&"d".repeat(50)),
             HashAlgorithm::Sha384
         );
     }
