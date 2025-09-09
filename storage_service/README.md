@@ -181,7 +181,7 @@ storage_service/
     ├── tests.rs             # Integration tests
     └── merkle_tree/         # Merkle tree implementation
         ├── mod.rs
-        ├── hasher.rs        # Delegates to atlas-common
+        ├── hasher.rs        # Wrapper for atlas-common
         ├── proof.rs         # Proof structures and traits
         └── tree.rs          # Core tree implementation
 ```
