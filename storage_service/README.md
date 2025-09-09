@@ -77,7 +77,7 @@ curl -X POST http://localhost:8080/manifests/my-manifest-789?manifest_type=video
   -H "Content-Type: application/octet-stream" \
   --data-binary @manifest.bin
 
-# C2PA URN format (automatically validated)
+# C2PA URN format
 curl -X POST http://localhost:8080/manifests/urn:c2pa:123e4567-e89b-12d3-a456-426614174000 \
   -H "Content-Type: application/json" \
   -d '{"manifest_type": "model", "data": "ML model manifest"}'
