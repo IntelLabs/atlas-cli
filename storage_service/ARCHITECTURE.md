@@ -229,7 +229,7 @@ storage_service/
 3. **In-Memory Merkle Tree**: Fast proof generation with MongoDB persistence
 4. **Flexible Content Formats**: Supports JSON, CBOR, and binary manifests
 5. **Synchronous Tree Updates**: Ensures consistency but may impact latency
-6. **Centralized Validation**: Uses atlas-common for all validation logic
+6. **Unified Validation**: Uses atlas-common for all validation logic
 
 ### Performance Considerations
 
