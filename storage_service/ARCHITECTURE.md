@@ -200,7 +200,7 @@ storage_service/
 │   ├── main.rs              # HTTP server and API endpoints
 │   └── merkle_tree/         # Merkle tree implementation
 │       ├── mod.rs           # Module exports
-│       ├── hasher.rs        # Hashing trait (delegates to atlas-common)
+│       ├── hasher.rs        # Hashing trait (imported from atlas-common)
 │       ├── proof.rs         # Proof structures and MerkleProof trait
 │       └── tree.rs          # Core Merkle tree logic
 ```
