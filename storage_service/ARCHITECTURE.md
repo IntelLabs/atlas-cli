@@ -140,7 +140,7 @@ Stores the current state of the Merkle tree:
 ### 1. Manifest Storage Flow
 
 ```
-Client Request → Validation (atlas-common) → Hash Computation (atlas-common) → Signature Generation
+Client Request → Validation → Hash Computation → Signature Generation
      ↓                                                    ↓
 Store in MongoDB ← Sequence Assignment ← Merkle Tree Update
      ↓
@@ -152,7 +152,7 @@ Return Response with Metadata
 ```
 Proof Request → Find Leaf Position → Generate Merkle Path
      ↓                                        ↓
-Compute Sibling Hashes (atlas-common) ← Build Path from Leaf to Root
+Compute Sibling Hashes ← Build Path from Leaf to Root
      ↓
 Return Inclusion Proof
 ```
@@ -160,9 +160,9 @@ Return Inclusion Proof
 ### 3. Verification Flow
 
 ```
-Proof + Current Tree → Validate Tree Size → Verify Manifest ID (atlas-common)
+Proof + Current Tree → Validate Tree Size → Verify Manifest ID
      ↓                                              ↓
-Compute Leaf Hash (atlas-common) → Traverse Merkle Path → Compare Root Hashes
+Compute Leaf Hash → Traverse Merkle Path → Compare Root Hashes
      ↓
 Return Verification Result
 ```
