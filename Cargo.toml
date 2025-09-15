@@ -64,4 +64,4 @@ reqwest = { version = "0.12.23", features = ["blocking", "json"] }
 subtle = "2.6.1"
 
 [dev-dependencies]
-tempfile = "3.21.0"
+tempfile = "3.22.0"
