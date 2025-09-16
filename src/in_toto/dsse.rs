@@ -58,13 +58,13 @@ impl Envelope {
     pub fn validate(&self) -> bool {
         // check for required envelope fields
         if self.payload.is_empty() || self.payload_type.is_empty() || self.signatures.is_empty() {
-            false
+            return false;
         }
 
         // check required signature fields
-        for signature in signatures {
+        for signature in &self.signatures {
             if signature.sig.is_empty() {
-                false
+                return false;
             }
         }
 
@@ -77,7 +77,7 @@ impl Signable for Envelope {
         let private_key = signing::load_private_key(&key_path)?;
 
         // DSSE requires that payload_type and payload be signed
-        let mut data_to_sign: Vec<u8> = Zeroizing::new(Vec::new());
+        let mut data_to_sign: Vec<u8> = Zeroizing::new(Vec::new()).to_vec();
         data_to_sign.extend_from_slice(&self.payload_type.clone().into_bytes());
 
         // DSSE requires payload to be JSON bytes
