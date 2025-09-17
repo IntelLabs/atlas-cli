@@ -73,7 +73,7 @@ pub fn generate_build_provenance(
     output_encoding: String,
     print: bool,
     storage: Option<&'static dyn StorageBackend>,
-    with_tdx: bool,
+    _with_tdx: bool,
 ) -> Result<()> {
     // Generate the SLSA BuildDefinition.externalParameters
     let external_params = ExternalParameters::new(inputs_path, pipeline_path, &hash_alg)?;
@@ -96,6 +96,7 @@ pub fn generate_build_provenance(
         slsa::generators::make_build_metadata_v1("", None, Some(&Timestamp::now()));
 
     // generate RunDetails
+    // FIXME: Add TDX support
     let run_details = slsa::generators::make_run_details_v1(&builder, Some(&build_metadata), None);
 
     // generate Provenance predicate!
@@ -137,7 +138,8 @@ pub fn generate_build_provenance(
     }
 
     // Store manifest if storage is provided
-    if let Some(storage) = &storage {
+    // FIXME: Add support for SLSA storage in backend
+    if let Some(_storage) = &storage {
         if !print {
             let id = 0;
             println!("Manifest stored successfully with ID: {id}");

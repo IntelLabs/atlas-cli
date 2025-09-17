@@ -8,7 +8,6 @@ use in_toto_attestation::v1::resource_descriptor::ResourceDescriptor;
 use protobuf::well_known_types::struct_::Struct;
 use protobuf_json_mapping::{parse_from_str, print_to_string};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::path::{Path, PathBuf};
 
 pub mod dsse;
