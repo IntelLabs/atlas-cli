@@ -892,7 +892,7 @@ fn generate_oms_subject_hash(manifest: &Manifest, hash_alg: &HashAlgorithm) -> R
                 ingredient.title, e
             ))
         })?;
-        ingredient_hashes.extend_from_slice(&raw_bytes.clone());
+        ingredient_hashes.extend_from_slice(&raw_bytes);
     }
 
     Ok(hash::calculate_hash_with_algorithm(
