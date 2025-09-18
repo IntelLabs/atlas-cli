@@ -7,7 +7,6 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use zeroize::Zeroizing;
 
 #[serde_as]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -77,7 +76,8 @@ impl Signable for Envelope {
         let private_key = signing::load_private_key(&key_path)?;
 
         // DSSE requires that payload_type and payload be signed
-        let mut data_to_sign: Vec<u8> = Zeroizing::new(Vec::new()).to_vec();
+        // We assume the payload is public
+        let mut data_to_sign: Vec<u8> = Vec::new();
         data_to_sign.extend_from_slice(&self.payload_type.clone().into_bytes());
 
         // DSSE requires payload to be JSON bytes

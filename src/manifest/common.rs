@@ -178,6 +178,7 @@ fn generate_c2pa_assertions(
 fn generate_c2pa_claim(config: &ManifestCreationConfig, asset_kind: AssetKind) -> Result<ClaimV2> {
     // Create ingredients using the helper function
     let mut ingredients = Vec::new();
+
     for (path, ingredient_name) in config.paths.iter().zip(config.ingredient_names.iter()) {
         // Determine asset type and format based on asset kind
         let format = determine_format(path)?;
@@ -198,6 +199,13 @@ fn generate_c2pa_claim(config: &ManifestCreationConfig, asset_kind: AssetKind) -
         )?;
         ingredients.push(ingredient);
     }
+
+    // Per the OMS spec, ingredients must be hashed in alphabetical order of the
+    // artifact name, so always canonicalize the order regardless of format
+    // because the manifest must provide references to all artifacts needed to
+    // recompute the model hash.
+    // See https://github.com/sigstore/model-transparency/blob/de2f935ad437218d577a3f39378c482bf3aafcec/src/model_signing/_signing/signing.py#L188-L192
+    ingredients.sort_by_key(|ingredient| ingredient.title.to_lowercase());
 
     let assertions = generate_c2pa_assertions(config, asset_kind)?;
 
@@ -860,7 +868,7 @@ fn get_cc_attestation_assertion() -> Result<CustomAssertion> {
     Ok(cc_assertion)
 }
 
-// compute the OMS subject hash as specified in https://github.com/sigstore/model-transparency/blob/main/src/model_signing/_signing/signing.py#L181
+// Compute the OMS subject hash as specified in https://github.com/sigstore/model-transparency/blob/de2f935ad437218d577a3f39378c482bf3aafcec/src/model_signing/_signing/signing.py#L181-L186
 fn generate_oms_subject_hash(manifest: &Manifest, hash_alg: &HashAlgorithm) -> Result<String> {
     // generate the hash over all ingredient hashes for the model
     if manifest.claim.ingredients.is_empty() {
@@ -869,9 +877,21 @@ fn generate_oms_subject_hash(manifest: &Manifest, hash_alg: &HashAlgorithm) -> R
         ));
     }
 
+    // Per the OMS spec, the ingredients must be hashed in a canonical order
+    // (alphabetical order of artifact name)
+    // Since we cannot assume that the ingredients in the manifest are sorted
+    // as expected (e.g., during verification), we sort every time we hash.
+    let mut ingredients_to_hash = manifest.claim.ingredients.clone();
+    ingredients_to_hash.sort_by_key(|ingredient| ingredient.title.to_lowercase());
+
     let mut ingredient_hashes: Vec<u8> = Vec::new();
-    for ingredient in &manifest.claim.ingredients {
-        let raw_bytes = hex::decode(&ingredient.data.hash)?;
+    for ingredient in &ingredients_to_hash {
+        let raw_bytes = hex::decode(&ingredient.data.hash).map_err(|e| {
+            Error::Validation(format!(
+                "Invalid hash for ingredient {}: {}",
+                ingredient.title, e
+            ))
+        })?;
         ingredient_hashes.extend_from_slice(&raw_bytes.clone());
     }
 
