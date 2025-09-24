@@ -116,7 +116,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
             storage_url,
             print,
             encoding,
-            encoding,
+            format,
             key,
             hash_alg,
             with_tdx,
