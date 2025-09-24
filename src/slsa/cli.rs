@@ -107,11 +107,15 @@ pub fn generate_build_provenance(
     // Generate the statement subjects
     let subject = generate_file_list_resource_descriptors(products_path, &hash_alg)?;
 
+    let key_path = key_path.ok_or_else(|| {
+        Error::Validation("Signing key is required for SLSA provenance".to_string())
+    })?;
+
     let envelope = in_toto::generate_signed_statement_v1(
         &subject,
         slsa::BUILD_PROVENANCE_PREDICATE_TYPE_V1,
         &provenance_proto,
-        key_path.expect("signing key must be provided"),
+        key_path,
         hash_alg,
     )?;
 
