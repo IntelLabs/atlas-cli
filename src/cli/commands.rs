@@ -61,9 +61,9 @@ pub enum DatasetCommands {
         #[arg(long = "print")]
         print: bool,
 
-        /// Output format (json or cbor)
-        #[arg(long = "format", default_value = "json")]
-        format: String,
+        /// Output encoding (json or cbor)
+        #[arg(long = "encoding", default_value = "json")]
+        encoding: String,
 
         /// Storage backend (local or rekor)
         #[arg(long = "storage-type", default_value = "database")]
@@ -289,9 +289,9 @@ pub enum ManifestCommands {
         #[arg(long = "storage-url", default_value = "http://localhost:8080")]
         storage_url: Box<String>,
 
-        /// Output format (json or yaml)
-        #[arg(long = "format", default_value = "json")]
-        format: String,
+        /// Output encoding (json or yaml)
+        #[arg(long = "encoding", default_value = "json")]
+        encoding: String,
 
         /// Output file path (defaults to stdout if not provided)
         #[arg(short, long)]
@@ -351,9 +351,9 @@ pub enum EvaluationCommands {
         #[arg(long = "print")]
         print: bool,
 
-        /// Output format (json or cbor)
-        #[arg(long = "format", default_value = "json")]
-        format: String,
+        /// Output encoding (json or cbor)
+        #[arg(long = "encoding", default_value = "json")]
+        encoding: String,
 
         /// Storage backend (local or rekor)
         #[arg(long = "storage-type", default_value = "database")]
@@ -458,9 +458,9 @@ pub enum SoftwareCommands {
         #[arg(long = "print")]
         print: bool,
 
-        /// Output format (json or cbor)
-        #[arg(long = "format", default_value = "json")]
-        format: String,
+        /// Output encoding (json or cbor)
+        #[arg(long = "encoding", default_value = "json")]
+        encoding: String,
 
         /// Storage backend (local or rekor)
         #[arg(long = "storage-type", default_value = "database")]
