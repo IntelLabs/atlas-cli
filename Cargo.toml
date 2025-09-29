@@ -68,7 +68,7 @@ reqwest = { version = "0.12.23", features = ["blocking", "json"] }
 subtle = "2.6.1"
 
 [dev-dependencies]
-tempfile = "3.22.0"
+tempfile = "3.23.0"
 
 [profile.release.build-override]
 debug-assertions = true
