@@ -26,3 +26,13 @@ jobs:
       - name: Run all tests
         run: |
           cargo test --all-features --profile release
+
+      - name: Build test framework
+        run: |
+          cd examples
+          cargo build --release
+
+      - name: Test framework unit tests
+        run: |
+          cd examples
+          cargo test

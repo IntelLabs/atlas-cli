@@ -18,6 +18,10 @@ exclude = [
     "/Makefile",
 ]
 
+[workspace]
+members = ["."]
+exclude = ["examples"]
+
 [[bin]]
 name = "atlas-cli"
 path = "src/main.rs"
