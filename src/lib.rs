@@ -35,8 +35,10 @@ pub mod cc_attestation;
 pub mod cli;
 pub mod error;
 pub mod hash;
+pub mod in_toto;
 pub mod manifest;
 pub mod signing;
+pub mod slsa;
 pub mod storage;
 #[cfg(test)]
 mod tests;

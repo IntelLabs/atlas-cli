@@ -7,7 +7,7 @@ use std::fs::read;
 use std::path::Path;
 use zeroize::{ZeroizeOnDrop, Zeroizing};
 
-pub mod utils;
+pub mod signable;
 
 /// Secure wrapper for private key data that zeroizes on drop
 #[derive(ZeroizeOnDrop)]
@@ -122,6 +122,7 @@ pub fn pkey_to_secure(pkey: PKey<Private>) -> Result<SecurePrivateKey> {
 
     SecurePrivateKey::from_pem(pem_data)
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;

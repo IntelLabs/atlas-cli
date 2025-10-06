@@ -14,6 +14,7 @@ pub mod config;
 pub mod dataset;
 pub mod evaluation;
 pub mod model;
+pub mod signer;
 pub mod software;
 pub mod utils;
 pub use dataset::create_manifest as create_dataset_manifest;

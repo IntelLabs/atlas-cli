@@ -23,6 +23,10 @@ impl RekorStorage {
 }
 
 impl StorageBackend for RekorStorage {
+    fn get_base_uri(&self) -> String {
+        self.base_url.clone()
+    }
+
     fn store_manifest(&self, _manifest: &Manifest) -> Result<String> {
         // TODO: Implement actual storage
         println!("Would store manifest at: {}", self.base_url);

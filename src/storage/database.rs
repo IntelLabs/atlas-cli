@@ -74,6 +74,10 @@ impl DatabaseStorage {
 }
 
 impl StorageBackend for DatabaseStorage {
+    fn get_base_uri(&self) -> String {
+        self.base_url.clone()
+    }
+
     fn store_manifest(&self, manifest: &Manifest) -> Result<String> {
         // Check if this ID already exists
         let existing = self

@@ -1,12 +1,12 @@
 use crate::cc_attestation;
 use crate::error::{Error, Result};
 use crate::hash;
-
+use crate::in_toto;
 use crate::manifest::config::ManifestCreationConfig;
 use crate::manifest::utils::{
     determine_dataset_type, determine_format, determine_model_type, determine_software_type,
 };
-use crate::signing;
+use crate::signing::signable::Signable;
 use crate::storage::traits::{ArtifactLocation, StorageBackend};
 use atlas_c2pa_lib::assertion::{
     Action, ActionAssertion, Assertion, Author, CreativeWorkAssertion, CustomAssertion,
@@ -18,13 +18,13 @@ use atlas_c2pa_lib::cross_reference::CrossReference;
 use atlas_c2pa_lib::datetime_wrapper::OffsetDateTimeWrapper;
 use atlas_c2pa_lib::ingredient::{Ingredient, IngredientData};
 use atlas_c2pa_lib::manifest::Manifest;
-use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
-use serde_json::to_string_pretty;
+use serde_json::{to_string, to_string_pretty};
 use std::path::{Path, PathBuf};
 use tdx_workload_attestation::get_platform_name;
 use time::OffsetDateTime;
 use uuid::Uuid;
+
+const CLAIM_GENERATOR: &str = "atlas-cli:0.1.1";
 
 /// Asset type enum to distinguish between models, datasets, software, and evaluations
 pub enum AssetKind {
@@ -34,31 +34,10 @@ pub enum AssetKind {
     Evaluation,
 }
 
-/// Creates a manifest for a model, dataset, software, or evaluation
-pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) -> Result<()> {
-    // Create ingredients using the helper function
-    let mut ingredients = Vec::new();
-    for (path, ingredient_name) in config.paths.iter().zip(config.ingredient_names.iter()) {
-        // Determine asset type and format based on asset kind
-        let format = determine_format(path)?;
-        let asset_type = match asset_kind {
-            AssetKind::Model => determine_model_type(path)?,
-            AssetKind::Dataset => determine_dataset_type(path)?,
-            AssetKind::Software => determine_software_type(path)?,
-            AssetKind::Evaluation => AssetType::Dataset, // Use Dataset type for evaluation results
-        };
-
-        // Use the helper function to create the ingredient
-        let ingredient = create_ingredient_from_path_with_algorithm(
-            path,
-            ingredient_name,
-            asset_type,
-            format,
-            &config.hash_alg,
-        )?;
-        ingredients.push(ingredient);
-    }
-
+fn generate_c2pa_assertions(
+    config: &ManifestCreationConfig,
+    asset_kind: AssetKind,
+) -> Result<Vec<Assertion>> {
     // Determine asset-specific values
     let (creative_type, digital_source_type) = match asset_kind {
         AssetKind::Model => (
@@ -107,7 +86,7 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
                     AssetKind::Evaluation => "c2pa.evaluation".to_string(),
                     _ => "c2pa.created".to_string(),
                 },
-                software_agent: Some("c2pa-cli".to_string()),
+                software_agent: Some(CLAIM_GENERATOR.to_string()),
                 parameters: Some(match asset_kind {
                     AssetKind::Evaluation => {
                         // Merge evaluation parameters with standard parameters
@@ -174,14 +153,9 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
                         }
                         params
                     }
-                    _ => serde_json::json!({
-                        "name": config.name,
-                        "description": config.description,
-                        "author": {
-                            "organization": config.author_org,
-                            "name": config.author_name
-                        }
-                    }),
+                    // don't need to repeat info for created action assertions that's
+                    // already in the CreativeWork assertion
+                    _ => serde_json::json!({}),
                 }),
                 digital_source_type: Some(digital_source_type),
                 instance_id: None,
@@ -198,44 +172,75 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
         assertions.push(Assertion::CustomAssertion(cc_assertion));
     }
 
+    Ok(assertions)
+}
+
+fn generate_c2pa_claim(config: &ManifestCreationConfig, asset_kind: AssetKind) -> Result<ClaimV2> {
+    // Create ingredients using the helper function
+    let mut ingredients = Vec::new();
+
+    for (path, ingredient_name) in config.paths.iter().zip(config.ingredient_names.iter()) {
+        // Determine asset type and format based on asset kind
+        let format = determine_format(path)?;
+        let asset_type = match asset_kind {
+            AssetKind::Model => determine_model_type(path)?,
+            AssetKind::Dataset => determine_dataset_type(path)?,
+            AssetKind::Software => determine_software_type(path)?,
+            AssetKind::Evaluation => AssetType::Dataset, // Use Dataset type for evaluation results
+        };
+
+        // Use the helper function to create the ingredient
+        let ingredient = create_ingredient_from_path_with_algorithm(
+            path,
+            ingredient_name,
+            asset_type,
+            format,
+            &config.hash_alg,
+        )?;
+        ingredients.push(ingredient);
+    }
+
+    // Per the OMS spec, ingredients must be hashed in alphabetical order of the
+    // artifact name, so always canonicalize the order regardless of format
+    // because the manifest must provide references to all artifacts needed to
+    // recompute the model hash.
+    // See https://github.com/sigstore/model-transparency/blob/de2f935ad437218d577a3f39378c482bf3aafcec/src/model_signing/_signing/signing.py#L188-L192
+    ingredients.sort_by_key(|ingredient| ingredient.title.to_lowercase());
+
+    let assertions = generate_c2pa_assertions(config, asset_kind)?;
+
     // Create claim
-    let mut claim = ClaimV2 {
+    Ok(ClaimV2 {
         instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
         ingredients: ingredients.clone(),
         created_assertions: assertions,
-        claim_generator_info: "c2pa-cli".to_string(),
+        claim_generator_info: CLAIM_GENERATOR.to_string(),
         signature: None,
         created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
-    };
+    })
+}
 
-    // Sign if key is provided
-    if let Some(key_file) = &config.key_path {
-        let private_key = signing::load_private_key(key_file)?;
-
-        // Serialize claim to CBOR for signing
-        let claim_cbor =
-            serde_cbor::to_vec(&claim).map_err(|e| Error::Serialization(e.to_string()))?;
-
-        // Use the signing module with the specified algorithm
-        let signature =
-            signing::sign_data_with_algorithm(&claim_cbor, &private_key, &config.hash_alg)?;
-
-        // Add signature to claim
-        claim.signature = Some(STANDARD.encode(&signature));
-    }
+/// Creates a manifest for a model, dataset, software, or evaluation
+pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) -> Result<()> {
+    let claim = generate_c2pa_claim(&config, asset_kind)?;
 
     // Create the manifest
     let mut manifest = Manifest {
-        claim_generator: "c2pa-cli/0.1.0".to_string(),
+        claim_generator: CLAIM_GENERATOR.to_string(),
         title: config.name.clone(),
         instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
-        ingredients,
         claim: claim.clone(),
+        ingredients: vec![],
         created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
         cross_references: vec![],
         claim_v2: Some(claim),
         is_active: true,
     };
+
+    // Sign if key is provided
+    if let Some(key_file) = &config.key_path {
+        manifest.sign(key_file.to_path_buf(), config.hash_alg)?;
+    }
 
     if let Some(manifest_ids) = &config.linked_manifests {
         if let Some(storage_backend) = &config.storage {
@@ -273,7 +278,7 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
 
     // Output manifest if requested
     if config.print || config.storage.is_none() {
-        match config.output_format.to_lowercase().as_str() {
+        match config.output_encoding.to_lowercase().as_str() {
             "json" => {
                 let manifest_json =
                     to_string_pretty(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
@@ -286,8 +291,118 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
             }
             _ => {
                 return Err(Error::Validation(format!(
-                    "Invalid output format '{}'. Valid options are: json, cbor",
-                    config.output_format
+                    "Invalid output encoding '{}'. Valid options are: json, cbor",
+                    config.output_encoding
+                )));
+            }
+        }
+    }
+
+    // Store manifest if storage is provided
+    if let Some(storage) = &config.storage {
+        if !config.print {
+            let id = storage.store_manifest(&manifest)?;
+            println!("Manifest stored successfully with ID: {id}");
+        }
+    }
+
+    Ok(())
+}
+
+/// Creates an OpenSSF Model Signing (OMS) compliant manifest for a model
+pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
+    let claim = generate_c2pa_claim(&config, AssetKind::Model)?;
+
+    // Create the manifest
+    let mut manifest = Manifest {
+        claim_generator: "".to_string(),
+        title: "".to_string(),
+        instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
+        claim: claim.clone(),
+        ingredients: vec![],
+        created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
+        cross_references: vec![],
+        claim_v2: None,
+        is_active: true,
+    };
+
+    if let Some(manifest_ids) = &config.linked_manifests {
+        if let Some(storage_backend) = &config.storage {
+            for linked_id in manifest_ids {
+                match storage_backend.retrieve_manifest(linked_id) {
+                    Ok(linked_manifest) => {
+                        // Create a JSON representation of the linked manifest
+                        let linked_json = serde_json::to_string(&linked_manifest)
+                            .map_err(|e| Error::Serialization(e.to_string()))?;
+
+                        // Create a hash of the linked manifest
+                        let linked_hash = hash::calculate_hash(linked_json.as_bytes());
+
+                        // Create a cross-reference
+                        let cross_ref = CrossReference {
+                            manifest_url: linked_id.clone(),
+                            manifest_hash: linked_hash,
+                            media_type: Some("application/json".to_string()),
+                        };
+
+                        // Add the cross-reference to the manifest
+                        manifest.cross_references.push(cross_ref);
+
+                        println!("Added link to manifest: {linked_id}");
+                    }
+                    Err(e) => {
+                        println!("Warning: Could not link to manifest {linked_id}: {e}");
+                    }
+                }
+            }
+        } else {
+            println!("Warning: Cannot link manifests without a storage backend");
+        }
+    }
+
+    // Generate the in-toto format Statement and sign the DSSE
+
+    // we need to convert this into a string to serialize into the Struct proto expected by in-toto
+    let manifest_json = to_string(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
+    let manifest_proto = in_toto::json_to_struct_proto(&manifest_json)?;
+
+    let subject_hash = generate_oms_subject_hash(&manifest, &config.hash_alg)?;
+
+    let subject = in_toto::make_minimal_resource_descriptor(
+        &config.name,
+        hash::algorithm_to_string(&config.hash_alg),
+        &subject_hash,
+    );
+
+    let key_path = config
+        .key_path
+        .ok_or_else(|| Error::Validation("OMS format requires a signing key".to_string()))?;
+
+    let envelope = in_toto::generate_signed_statement_v1(
+        &[subject],
+        "https://spec.c2pa.org/specifications/specifications/2.2",
+        &manifest_proto,
+        key_path.to_path_buf(),
+        config.hash_alg,
+    )?;
+
+    // Output manifest if requested
+    if config.print || config.storage.is_none() {
+        match config.output_encoding.to_lowercase().as_str() {
+            "json" => {
+                let envelope_json =
+                    to_string_pretty(&envelope).map_err(|e| Error::Serialization(e.to_string()))?;
+                println!("{envelope_json}");
+            }
+            "cbor" => {
+                let envelope_cbor = serde_cbor::to_vec(&envelope)
+                    .map_err(|e| Error::Serialization(e.to_string()))?;
+                println!("{}", hex::encode(&envelope_cbor));
+            }
+            _ => {
+                return Err(Error::Validation(format!(
+                    "Invalid output encoding '{}'. Valid options are: json, cbor",
+                    config.output_encoding
                 )));
             }
         }
@@ -751,4 +866,37 @@ fn get_cc_attestation_assertion() -> Result<CustomAssertion> {
     };
 
     Ok(cc_assertion)
+}
+
+// Compute the OMS subject hash as specified in https://github.com/sigstore/model-transparency/blob/de2f935ad437218d577a3f39378c482bf3aafcec/src/model_signing/_signing/signing.py#L181-L186
+fn generate_oms_subject_hash(manifest: &Manifest, hash_alg: &HashAlgorithm) -> Result<String> {
+    // generate the hash over all ingredient hashes for the model
+    if manifest.claim.ingredients.is_empty() {
+        return Err(Error::Validation(
+            "OMS requires at least one ingredient".to_string(),
+        ));
+    }
+
+    // Per the OMS spec, the ingredients must be hashed in a canonical order
+    // (alphabetical order of artifact name)
+    // Since we cannot assume that the ingredients in the manifest are sorted
+    // as expected (e.g., during verification), we sort every time we hash.
+    let mut ingredients_to_hash = manifest.claim.ingredients.clone();
+    ingredients_to_hash.sort_by_key(|ingredient| ingredient.title.to_lowercase());
+
+    let mut ingredient_hashes: Vec<u8> = Vec::new();
+    for ingredient in &ingredients_to_hash {
+        let raw_bytes = hex::decode(&ingredient.data.hash).map_err(|e| {
+            Error::Validation(format!(
+                "Invalid hash for ingredient {}: {}",
+                ingredient.title, e
+            ))
+        })?;
+        ingredient_hashes.extend_from_slice(&raw_bytes);
+    }
+
+    Ok(hash::calculate_hash_with_algorithm(
+        &ingredient_hashes,
+        hash_alg,
+    ))
 }

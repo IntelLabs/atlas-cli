@@ -88,6 +88,10 @@ impl FilesystemStorage {
 }
 
 impl StorageBackend for FilesystemStorage {
+    fn get_base_uri(&self) -> String {
+        "file:///".to_string()
+    }
+
     fn store_manifest(&self, manifest: &Manifest) -> Result<String> {
         let manifest_id = manifest.instance_id.clone();
         let path = self.manifest_path(&manifest_id);

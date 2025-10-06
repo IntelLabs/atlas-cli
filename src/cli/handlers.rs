@@ -2,12 +2,13 @@ use crate::error::{Error, Result};
 
 use super::commands::{
     CCAttestationCommands, DatasetCommands, EvaluationCommands, ManifestCommands, ModelCommands,
-    SoftwareCommands,
+    PipelineCommands, SoftwareCommands,
 };
 use crate::cc_attestation;
 use crate::manifest;
 use crate::manifest::config::ManifestCreationConfig;
 use crate::manifest::dataset::list_dataset_manifests;
+use crate::slsa;
 use crate::storage::database::DatabaseStorage;
 use crate::storage::filesystem::FilesystemStorage;
 use crate::storage::rekor::RekorStorage;
@@ -28,7 +29,7 @@ pub fn handle_dataset_command(cmd: DatasetCommands) -> Result<()> {
             storage_type,
             storage_url,
             print,
-            format,
+            encoding,
             key,
             hash_alg,
             with_tdx,
@@ -59,7 +60,7 @@ pub fn handle_dataset_command(cmd: DatasetCommands) -> Result<()> {
                 linked_manifests,
                 storage,
                 print,
-                output_format: format,
+                output_encoding: encoding,
                 key_path: key,
                 hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: with_tdx,
@@ -114,6 +115,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
             storage_type,
             storage_url,
             print,
+            encoding,
             format,
             key,
             hash_alg,
@@ -145,7 +147,7 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
                 linked_manifests,
                 storage,
                 print,
-                output_format: format,
+                output_encoding: encoding,
                 key_path: key,
                 hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: with_tdx,
@@ -154,7 +156,15 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
                 custom_fields: None,
             };
 
-            manifest::create_model_manifest(config)
+            match format.as_str() {
+                "standalone" => manifest::create_model_manifest(config),
+                "oms" => manifest::common::create_oms_manifest(config),
+                _ => {
+                    return Err(Error::InitializationError(
+                        "Unsupported output format".to_string(),
+                    ));
+                }
+            }
         }
         ModelCommands::List {
             storage_type,
@@ -277,7 +287,7 @@ pub fn handle_manifest_command(cmd: ManifestCommands) -> Result<()> {
             id,
             storage_type,
             storage_url,
-            format,
+            encoding,
             output,
             max_depth,
         } => {
@@ -291,7 +301,7 @@ pub fn handle_manifest_command(cmd: ManifestCommands) -> Result<()> {
             manifest::export_provenance(
                 &id,
                 &*storage,
-                format.as_str(),
+                encoding.as_str(),
                 output.as_deref(),
                 max_depth,
             )
@@ -313,7 +323,7 @@ pub fn handle_evaluation_command(cmd: EvaluationCommands) -> Result<()> {
             storage_type,
             storage_url,
             print,
-            format,
+            encoding,
             key,
             hash_alg,
         } => {
@@ -343,7 +353,7 @@ pub fn handle_evaluation_command(cmd: EvaluationCommands) -> Result<()> {
                 linked_manifests: None, // Will be populated by create_manifest
                 storage,
                 print,
-                output_format: format,
+                output_encoding: encoding,
                 key_path: key,
                 hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: false,
@@ -428,7 +438,7 @@ pub fn handle_software_command(cmd: SoftwareCommands) -> Result<()> {
             storage_type,
             storage_url,
             print,
-            format,
+            encoding,
             key,
             hash_alg,
             with_tdx,
@@ -459,7 +469,7 @@ pub fn handle_software_command(cmd: SoftwareCommands) -> Result<()> {
                 linked_manifests,
                 storage,
                 print,
-                output_format: format,
+                output_encoding: encoding,
                 key_path: key,
                 hash_alg: hash_alg.to_cose_algorithm(),
                 with_cc: with_tdx,
@@ -528,6 +538,43 @@ pub fn handle_software_command(cmd: SoftwareCommands) -> Result<()> {
 
             // Link software to dataset
             manifest::link_manifests(&dataset_id, &software_id, storage.as_ref())
+        }
+    }
+}
+
+pub fn handle_pipeline_command(cmd: PipelineCommands) -> Result<()> {
+    match cmd {
+        PipelineCommands::GenerateProvenance {
+            inputs,
+            pipeline,
+            products,
+            key,
+            hash_alg,
+            encoding,
+            print,
+            storage_type,
+            storage_url,
+            with_tdx,
+        } => {
+            let storage: Option<&'static dyn StorageBackend> = match storage_type.as_str() {
+                "local-fs" => {
+                    let fs_storage = Box::new(FilesystemStorage::new(storage_url.as_str())?);
+                    Some(Box::leak(fs_storage))
+                }
+                _ => None,
+            };
+
+            slsa::cli::generate_build_provenance(
+                inputs,
+                pipeline,
+                products,
+                key,
+                hash_alg.to_cose_algorithm(),
+                encoding,
+                print,
+                storage,
+                with_tdx,
+            )
         }
     }
 }
