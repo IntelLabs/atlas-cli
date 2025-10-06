@@ -63,7 +63,7 @@ The training scripts require additional dependencies that should be installed in
 
 ```bash
 # Navigate to the MNIST example directory
-cd examples/mnist_pipeline
+cd examples/workflows/mnist
 
 # Install ML dependencies (if pyproject.toml exists in this directory)
 poetry install
@@ -86,6 +86,9 @@ export PATH=$PATH:./target/release
 # Verify installation
 atlas-cli --version
 ```
+
+### Setting up the Atlas Test Framework
+See the parent [README.md](../../README.md) for instructions on building the test framework.
 
 ### Database Backend
 
@@ -134,13 +137,13 @@ Run the complete MNIST pipeline using the framework:
 
 ```bash
 # Run the complete MNIST training pipeline
-atlas-test examples/mnist_pipeline/mnist_complete_pipeline.yaml
+./target/release/atlas-test mnist_complete_pipeline.yaml
 
 # Run with verbose output for debugging
-atlas-test examples/mnist_pipeline/mnist_complete_pipeline.yaml --verbose
+./target/release/atlas-test mnist_complete_pipeline.yaml --verbose
 
 # Run without interactive pauses
-atlas-test examples/mnist_pipeline/mnist_complete_pipeline.yaml --no-interactive
+./target/release/atlas-test mnist_complete_pipeline.yaml --no-interactive
 ```
 
 ### Preview Mode
@@ -149,7 +152,7 @@ To see what the framework will do without executing:
 
 ```bash
 # Dry run to preview all operations
-atlas-test examples/mnist_pipeline/mnist_complete_pipeline.yaml --dry-run
+./target/release/atlas-test mnist_complete_pipeline.yaml --dry-run
 ```
 
 ### Interactive Mode
@@ -158,7 +161,7 @@ For step-by-step execution with pauses:
 
 ```bash
 # Run with interactive pauses between steps
-atlas-test examples/mnist_pipeline/mnist_complete_pipeline.yaml --interactive
+./target/release/atlas-test mnist_complete_pipeline.yaml --interactive
 ```
 
 ## Workflow Steps
@@ -380,7 +383,7 @@ For detailed troubleshooting:
 
 ```bash
 # Run with maximum verbosity
-atlas-test examples/mnist_pipeline/mnist_complete_pipeline.yaml --verbose
+./target/release/atlas-test mnist_complete_pipeline.yaml --verbose
 
 # Check generated logs
 cat ./output/commands.log

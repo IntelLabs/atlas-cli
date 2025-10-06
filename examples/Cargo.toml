@@ -1,0 +1,73 @@
+[package]
+name = "atlas-test-rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["Atlas Test Framework Contributors"]
+description = "Test framework for Atlas CLI provenance and integrity testing"
+repository = "https://github.com/IntelLabs/atlas-cli/"
+license = "MIT OR Apache-2.0"
+keywords = ["atlas", "provenance", "testing", "ml", "integrity"]
+categories = ["development-tools::testing", "command-line-utilities"]
+
+[dependencies]
+# CLI and argument parsing
+clap = { version = "4.5", features = ["derive", "env"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+
+# Async runtime
+tokio = { version = "1.40", features = ["full"] }
+
+# Terminal colors and formatting
+colored = "2.1"
+indicatif = "0.17"
+
+# Pattern matching and text processing
+regex = "1.10"
+shell-words = "1.1"
+
+# Date and time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# Path utilities
+pathdiff = "0.2"
+directories = "5.0"
+
+# Testing utilities
+[dev-dependencies]
+tempfile = "3.10"
+mockall = "0.12"
+pretty_assertions = "1.4"
+serial_test = "3.1"
+
+# Binary configuration
+[[bin]]
+name = "atlas-test"
+path = "src/main.rs"
+
+[lib]
+name = "atlas_test"
+path = "src/lib.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+
+[profile.dev]
+opt-level = 0
+
+[features]
+default = []
+integration-tests = []

@@ -44,11 +44,7 @@ export PATH=$PATH:./target/release
 ```
 
 ### Setting up the Atlas Test Framework
-Install the test framework dependencies:
-```bash
-# Install dependencies
-poetry install
-```
+See the parent [README.md](../../README.md) for instructions on building the test framework.
 
 ### Setting up the Database Backend
 Start the database backend (if not already running):
@@ -63,7 +59,7 @@ You can launch the demo using the Atlas Test Framework with the provided YAML co
 
 ```bash
 # Run the OSS NA '25 demo
-atlas-test examples/oss25_demo/oss25_demo_pipeline.yaml
+./target/release/atlas-test examples/oss25_demo/oss25_demo_pipeline.yaml
 ```
 
 The demo runs in interactive mode by default, allowing you to progress through each step by pressing Enter. The framework will automatically:
@@ -80,10 +76,10 @@ The demo runs in interactive mode by default, allowing you to progress through e
 atlas-test examples/oss25_demo/oss25_demo_pipeline.yaml --no-interactive
 
 # Dry run to see what commands would be executed
-atlas-test examples/oss25_demo/oss25_demo_pipeline.yaml --dry-run
+./target/release/atlas-test oss25_demo_pipeline.yaml --dry-run
 
 # Verbose output for debugging
-atlas-test examples/oss25_demo/oss25_demo_pipeline.yaml --verbose
+./target/release/atlas-test oss25_demo_pipeline.yaml --verbose
 ```
 
 ### Demo Steps

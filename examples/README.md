@@ -1,6 +1,6 @@
 # Atlas Test Framework
 
-A testing framework for Atlas CLI that enables automated testing of C2PA ML provenance workflows, integrity verification, and manifest management.
+A testing framework for Atlas CLI that enables automated testing of AI provenance workflows, integrity verification, and manifest management.
 
 The Atlas Test Framework provides:
 - Automated execution of Atlas CLI commands
@@ -10,26 +10,29 @@ The Atlas Test Framework provides:
 - Support for multiple storage backends (local-fs, database, rekor)
 - Modular test examples with shared resources
 
-## 📋 Prerequisites
+## Prerequisites
 
-- Python 3.8 or higher
-- Poetry (for dependency management)
+- Rust 1.70 or higher
+- Cargo (comes with Rust)
 - Atlas CLI installed and accessible in PATH
 - OpenSSL (for key generation)
 
-## 🚀 Quick Start
+## Quick Start
 
-### 1. Install Poetry
+### 1. Clone the Repository
 
 ```bash
-curl -sSL https://install.python-poetry.org | python3 -
+git clone https://github.com/IntelLabs/atlas-cli
+cd atlas-cli/examples
 ```
 
-### 2. Clone and Setup
+### 2. Build the Framework
 
 ```bash
-cd examples
-poetry install
+# Build release version
+cargo build --release
+
+# The binary will be at ./target/release/atlas-test
 ```
 
 ### 3. Verify Atlas CLI
@@ -41,47 +44,66 @@ atlas-cli --version
 ### 4. Run Your First Test
 
 ```bash
-# Run the simple demo
-poetry run atlas-test examples/simple_demo/config.yaml
+# From atlas-cli/examples directory
+./target/release/atlas-test workflows/simple_demo/config.yaml
 
-# Or activate the virtual environment
-poetry shell
-atlas-test examples/simple_demo/config.yaml
+# Run with verbose output
+./target/release/atlas-test workflows/simple_demo/config.yaml --verbose
+
+# Run in dry-run mode
+./target/release/atlas-test workflows/simple_demo/config.yaml --dry-run
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 atlas-cli/examples/
-├── pyproject.toml              # Project dependencies
-├── README.md                   # This file
-├── .env.example               # Environment variables template
-├── .gitignore                 # Git ignore rules
+├── Cargo.toml                 # Rust dependencies and project config
+├── README.md                  # This file
+├── .gitignore                # Git ignore rules
 │
-├── atlas_test/                # Framework code
-│   ├── __init__.py
-│   ├── framework.py          # Main framework implementation
-│   ├── runner.py            # CLI runner
-│   ├── recorder.py          # Command recording
-│   └── utils.py             # Utility functions
+├── src/                      # Framework source code
+│   ├── main.rs              # CLI entry point
+│   ├── lib.rs               # Library exports
+│   ├── framework.rs         # Main framework implementation
+│   ├── command.rs           # Command builder
+│   ├── recorder.rs          # Command recording
+│   ├── config.rs            # Configuration parsing
+│   ├── error.rs             # Error types
+│   ├── utils.rs             # Utility functions
+│   └── actions/             # Action handlers
+│       ├── mod.rs
+│       ├── dataset.rs       # Dataset operations
+│       ├── model.rs         # Model operations
+│       ├── software.rs      # Software operations
+│       ├── evaluation.rs    # Evaluation operations
+│       ├── manifest.rs      # Manifest operations
+│       └── utility.rs       # Utility actions
 │
-├── shared/                   # Shared resources
-│   ├── data/                # Common datasets
-│   ├── scripts/             # Reusable scripts
-│   ├── models/              # Pre-trained models
-│   └── keys/                # Shared signing keys
-│
-├── examples/                 # Test examples
+├── workflows/               # Test workflow configurations
 │   ├── simple_demo/         # Basic functionality test
-│   ├── integrity_test/      # Tampering detection
-│   ├── mnist_pipeline/      # Complete ML pipeline
-│   └── oss025demo/         # OSS 2025 demo
-└── tests/                    # Framework tests
-    ├── test_framework.py
-    └── test_utils.py
+│   │   ├── config.yaml
+│   │   ├── data/
+│   │   └── keys/
+│   │
+│   ├── mnist/               # Complete ML pipeline example
+│   │   ├── mnist_complete_pipeline.yaml
+│   │   ├── pyproject.toml   # Python dependencies for training
+│   │   ├── train.py
+│   │   ├── eval.py
+│   │   └── download.py
+│   │
+│   └── oss25_demo/          # OSS 2025 demo
+│       └── oss25_demo_pipeline.yaml
+│
+└── shared/                   # Shared resources
+    ├── data/                # Common datasets
+    ├── scripts/             # Reusable scripts
+    ├── models/              # Pre-trained models
+    └── keys/                # Shared signing keys
 ```
 
-## 🔧 Configuration
+## Configuration
 
 ### Basic Configuration Structure
 
@@ -108,26 +130,7 @@ steps:
     store_as: DATASET_ID       # Store result for later use
 ```
 
-### Environment Variables
-
-Create a `.env` file in your project root:
-
-```bash
-# Storage Configuration
-STORAGE_TYPE=local-fs
-STORAGE_URL=./storage
-
-# Author Information
-AUTHOR_ORG=My Organization
-AUTHOR_NAME=My Name
-AUTHOR_EMAIL=my.email@example.com
-
-# Signing Keys
-SIGNING_KEY=./keys/private.pem
-VERIFYING_KEY=./keys/public.pem
-```
-
-## 📚 Available Actions
+## Available Actions
 
 ### Dataset Operations
 
@@ -157,13 +160,17 @@ VERIFYING_KEY=./keys/public.pem
 - `manifest:link` - Link two manifests
 - `manifest:show` - Display manifest details
 - `manifest:export` - Export provenance graph
+- `manifest:list` - List all manifests
 
 ### Utility Operations
 
 - `shell:command` - Execute custom shell command
 - `file:tamper` - Tamper with a file (for testing)
+- `file:copy` - Copy a file
+- `file:delete` - Delete a file
+- `file:create` - Create a file with content
 
-## 💡 Examples
+## Examples
 
 ### Simple Dataset Creation
 
@@ -226,68 +233,126 @@ steps:
     expect: failure  # Should fail after tampering
 ```
 
-## 🔍 Path Resolution
-
-The framework supports special path prefixes:
-
-- `@shared/` - Reference shared resources
-- `@example/` - Reference current example directory
-- `./` - Relative to config file
-- `/` - Absolute path
-
-Example:
-```yaml
-parameters:
-  paths:
-    - ./data/local.csv          # Example-specific
-    - "@shared/data/common.csv" # Shared resource
-```
-
-## 🏃 Running Tests
+## Running Tests
 
 ### Basic Usage
 
 ```bash
-# Run a test configuration
-atlas-test <config-file>
+# From atlas-cli/examples directory
+./target/release/atlas-test <config-file>
+
+# Run examples
+./target/release/atlas-test workflows/simple_demo/config.yaml
+./target/release/atlas-test workflows/mnist/mnist_complete_pipeline.yaml
+./target/release/atlas-test workflows/oss25_demo/oss25_demo_pipeline.yaml
 
 # Run with options
-atlas-test examples/simple_demo/config.yaml \
+./target/release/atlas-test workflows/simple_demo/config.yaml \
     --dry-run \              # Preview commands without execution
     --verbose \              # Show detailed output
     --interactive \          # Pause between steps
-    --continue-on-error \    # Don't stop on errors
-    --output-dir ./output    # Custom output directory
+```
+
+### From Within Workflow Directory
+
+```bash
+# Navigate to specific workflow
+cd workflows/oss25_demo
+
+# Run from within the directory
+../../target/release/atlas-test oss25_demo_pipeline.yaml
+
+# Or for MNIST
+cd workflows/mnist
+../../target/release/atlas-test mnist_complete_pipeline.yaml
+```
+
+### Command Line Options
+
+```bash
+# Show help
+./target/release/atlas-test --help
+
+# Version information
+./target/release/atlas-test --version
+
+# Dry run (preview without execution)
+./target/release/atlas-test config.yaml --dry-run
+
+# Interactive mode (pause between steps)
+./target/release/atlas-test config.yaml --interactive
+
+# Verbose logging
+./target/release/atlas-test config.yaml --verbose
 ```
 
 ### Command Recording
 
 All executed commands are recorded in:
-- `commands.log` - Detailed execution log
-- `reproduce.sh` - Executable script to reproduce the test
+- `commands.log` - Detailed execution log with timestamps
+- `reproduce.sh` - Executable bash script to reproduce the test
 
-### Dry Run Mode
+## Building and Development
 
-Test your configuration without executing commands:
+### Build Commands
 
 ```bash
-atlas-test examples/simple_demo/config.yaml --dry-run
+# From atlas-cli/examples directory
+
+# Debug build (faster compilation, slower execution)
+cargo build
+
+# Release build (optimized)
+cargo build --release
+
+# Run directly with cargo
+cargo run -- workflows/simple_demo/config.yaml
+
+# Run with options
+cargo run --release -- workflows/simple_demo/config.yaml --verbose
+
+# Check code without building
+cargo check
+
+# Format code
+cargo fmt
+
+# Run linter
+cargo clippy
 ```
 
-## 📝 Creating New Examples
+### Running Tests
+
+```bash
+# Run all unit tests
+cargo test
+
+# Run tests with output
+cargo test -- --nocapture
+
+# Run specific test
+cargo test test_command_builder
+
+# Run tests with coverage (requires tarpaulin)
+cargo install cargo-tarpaulin
+cargo tarpaulin --out Html
+```
+
+## Creating New Workflows
 
 ### 1. Create Directory Structure
 
 ```bash
-mkdir -p examples/my_example/{data,scripts,models,output,keys}
+# From atlas-cli/examples directory
+mkdir -p workflows/my_workflow/{data,scripts,models,output,keys}
 ```
 
 ### 2. Create Configuration
 
 ```yaml
-# examples/my_example/config.yaml
-name: "My Example"
-description: "Description of my example"
+# workflows/my_workflow/config.yaml
+name: "My Workflow"
+description: "Description of my workflow"
 
 environment:
   storage_type: local-fs
@@ -307,56 +372,17 @@ steps:
 
 ```bash
 # Add your test files
-cp your_data.csv examples/my_example/data/
-cp your_model.pkl examples/my_example/models/
+cp your_data.csv workflows/my_workflow/data/
+cp your_model.pkl workflows/my_workflow/models/
 ```
 
-### 4. Create README
-
-```markdown
-# My Example
-
-## Purpose
-Describe what this example demonstrates
-
-## Requirements
-- List specific requirements
-
-## Usage
-\`\`\`bash
-poetry run atlas-test examples/my_example/config.yaml
-\`\`\`
-
-## Expected Results
-Describe expected outcomes
-```
-
-## 🧪 Testing
-
-### Run Framework Tests
+### 4. Run Your Workflow
 
 ```bash
-# Run all tests
-poetry run pytest
-
-# Run with coverage
-poetry run pytest --cov=atlas_test
-
-# Run specific test
-poetry run pytest tests/test_framework.py::test_command_builder
+./target/release/atlas-test workflows/my_workflow/config.yaml
 ```
 
-### Test All Examples
-
-```bash
-# Test all examples in dry-run mode
-for config in examples/*/config.yaml; do
-    echo "Testing: $config"
-    poetry run atlas-test "$config" --dry-run
-done
-```
-
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Atlas CLI Not Found
 
@@ -364,8 +390,24 @@ done
 # Check if atlas-cli is in PATH
 which atlas-cli
 
-# Add to PATH if needed
-export PATH=$PATH:/path/to/atlas-cli
+# If building from source, add to PATH
+cd ../  # to atlas-cli root
+cargo build --release
+export PATH=$PATH:$(pwd)/target/release
+```
+
+### Build Errors
+
+```bash
+# Update Rust toolchain
+rustup update
+
+# Clean and rebuild
+cargo clean
+cargo build --release
+
+# Check for dependency issues
+cargo update
 ```
 
 ### Storage Access Issues
@@ -385,32 +427,58 @@ curl http://localhost:8080/health
 ### Key Generation Fails
 
 ```bash
+# Ensure OpenSSL is installed
+openssl version
+
 # Generate keys manually
 openssl genpkey -algorithm RSA -out private.pem -pkeyopt rsa_keygen_bits:4096
 openssl rsa -pubout -in private.pem -out public.pem
 ```
 
-## 📊 Output Files
+## Output Files
 
 After running tests, check the output directory for:
 
 - `commands.log` - Complete command execution log
-- `reproduce.sh` - Script to reproduce all commands
+- `reproduce.sh` - Executable script to reproduce all commands
 - `*.json` - Exported manifests
 - `provenance_*.json` - Provenance graphs
 
-## 🚦 Status Codes
+## MNIST Pipeline Example
 
-- ✅ Success - Command executed successfully
-- ❌ Failure - Command failed
-- ⚠️ Warning - Non-critical issue
-- 📋 Info - Informational message
-- 🔑 Security - Key/signing related
-- 📦 Manifest - Manifest created/verified
-- 🏁 Complete - Test finished
+The MNIST pipeline example demonstrates a complete ML workflow with provenance tracking:
 
-## 📖 Additional Resources
+```bash
+# Navigate to mnist directory
+cd workflows/mnist
 
-- [Atlas CLI Documentation](https://github.com/IntelLabs/atlas-cli)
+# Install Python dependencies (for training)
+poetry install
+
+# Run the complete pipeline
+../../target/release/atlas-test mnist_complete_pipeline.yaml
+```
+
+This example:
+1. Downloads MNIST dataset
+2. Trains a CNN model
+3. Evaluates the model
+4. Creates provenance manifests for all artifacts
+5. Links manifests to show complete lineage
+6. Exports the full provenance graph
+
+## Additional Resources
+
+- [Atlas CLI Repository](https://github.com/IntelLabs/atlas-cli)
+- [Atlas CLI Documentation](https://github.com/IntelLabs/atlas-cli/blob/main/README.md)
 - [C2PA Specification](https://c2pa.org)
-- [Poetry Documentation](https://python-poetry.org/docs/)
+- [Rust Book](https://doc.rust-lang.org/book/)
+- [Cargo Documentation](https://doc.rust-lang.org/cargo/)
+
+## License
+
+MIT OR Apache-2.0
+
+## Contributing
+
+Contributions are welcome! Please see the main [Atlas CLI repository](https://github.com/IntelLabs/atlas-cli) for contribution guidelines.
