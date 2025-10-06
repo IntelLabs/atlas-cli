@@ -10,6 +10,7 @@ readme = "README.md"
 license = "Apache-2.0"
 keywords = ["c2pa", "machine-learning", "provenance", "transparency", "cli"]
 categories = ["command-line-utilities", "science", "cryptography"]
+autoexamples = false
 exclude = [
     "/.github/*",
     "/examples/*",
