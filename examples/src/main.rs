@@ -1,7 +1,7 @@
 use atlas_test::{
+    AtlasTestFramework,
     config::ConfigOverrides,
     utils::{print_error, setup_logging},
-    AtlasTestFramework,
 };
 use clap::Parser;
 use colored::*;
