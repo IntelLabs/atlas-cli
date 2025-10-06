@@ -44,7 +44,7 @@ lazy_static = "1.4"
 log = "0.4"
 openssl = "0.10.73"
 sha2 = "0.10"
-thiserror = "2.0.16"
+thiserror = "2.0.17"
 time = { version = "0.3", features = ["serde"] }
 uuid = { version = "1.18", features = ["v4"] }
 walkdir = "2.4"
