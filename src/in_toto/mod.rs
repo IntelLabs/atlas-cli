@@ -1,3 +1,40 @@
+//! # in-toto Attestation Generation Library
+//!
+//! This module provides functionality for creating and signing in-toto attestations using
+//! Dead Simple Signing Envelope (DSSE) format. It includes utilities for generating
+//! resource descriptors, creating signed statements, and working with protobuf structures.
+//!
+//! ## Key Components
+//!
+//! - **Resource Descriptors**: Structures that describe artifacts with their digests
+//! - **Statement Generation**: Creation of in-toto attestation statements
+//! - **DSSE Envelopes**: Containers for signed payloads with cryptographic signatures
+//! - **JSON/Protobuf Conversion**: Utilities for converting between formats
+//!
+//! ## Examples
+//!
+//! ```no_run
+//! use crate::in_toto::{make_minimal_resource_descriptor, generate_signed_statement_v1};
+//! use atlas_c2pa_lib::cose::HashAlgorithm;
+//! use std::path::PathBuf;
+//!
+//! // Create a resource descriptor for an artifact
+//! let resource = make_minimal_resource_descriptor(
+//!     "model.onnx",
+//!     "sha384",
+//!     "abc123..."
+//! );
+//!
+//! // Generate a signed statement (requires valid key and predicate)
+//! let envelope = generate_signed_statement_v1(
+//!     &[resource],
+//!     "https://in-toto.io/Statement/v0.1",
+//!     &predicate_struct,
+//!     PathBuf::from("private_key.pem"),
+//!     HashAlgorithm::Sha384,
+//! );
+//! ```
+
 use crate::error::{Error, Result};
 use crate::hash;
 use crate::signing::signable::Signable;
@@ -16,6 +53,37 @@ use dsse::Envelope;
 
 const DSSE_PAYLOAD_TYPE: &str = "application/vnd.in-toto+json";
 
+/// Converts a JSON string to a protobuf Struct.
+///
+/// This function parses a JSON string and converts it into a protobuf `Struct` type,
+/// which is commonly used in in-toto attestations as predicate data. The conversion
+/// handles nested JSON objects and arrays appropriately.
+///
+/// # Arguments
+///
+/// * `json_str` - A JSON string to be converted to protobuf format
+///
+/// # Returns
+///
+/// A protobuf `Struct` on success, or a serialization error if parsing fails.
+///
+/// # Errors
+///
+/// Returns a `Serialization` error if:
+/// - The input string is not valid JSON
+/// - The JSON structure cannot be converted to protobuf format
+///
+/// # Examples
+///
+/// ```
+/// use crate::in_toto::json_to_struct_proto;
+///
+/// let json_data = r#"{"name": "test", "version": "1.0"}"#;
+/// let struct_proto = json_to_struct_proto(json_data)?;
+///
+/// // The resulting struct can be used in in-toto predicates
+/// assert!(!struct_proto.fields.is_empty());
+/// ```
 pub fn json_to_struct_proto(json_str: &str) -> Result<Struct> {
     let msg_struct = parse_from_str::<Struct>(&json_str).map_err(|e| {
         Error::Serialization(format!("Failed to serialize in-toto statement: {}", e))
@@ -24,6 +92,36 @@ pub fn json_to_struct_proto(json_str: &str) -> Result<Struct> {
     Ok(msg_struct)
 }
 
+/// Creates a minimal resource descriptor with name and digest information.
+///
+/// This function constructs a basic in-toto resource descriptor containing only
+/// the essential fields: name and digest. The digest is provided as a single
+/// algorithm-value pair, making this suitable for simple attestation scenarios.
+///
+/// # Arguments
+///
+/// * `name` - The name or identifier of the resource (e.g., filename, artifact name)
+/// * `alg` - The hash algorithm used (e.g., "sha256", "sha384", "sha512")
+/// * `digest` - The hex-encoded hash value of the resource
+///
+/// # Returns
+///
+/// A `ResourceDescriptor` with the specified name and digest information.
+///
+/// # Examples
+///
+/// ```no_run
+/// use crate::in_toto::make_minimal_resource_descriptor;
+///
+/// let descriptor = make_minimal_resource_descriptor(
+///     "model.onnx",
+///     "sha384",
+///     "a1b2c3d4e5f6..."
+/// );
+///
+/// assert_eq!(descriptor.name, "model.onnx");
+/// assert!(descriptor.digest.contains_key("sha384"));
+/// ```
 pub fn make_minimal_resource_descriptor(name: &str, alg: &str, digest: &str) -> ResourceDescriptor {
     let digest_set = HashMap::from([(alg.to_string(), digest.to_string())]);
 
@@ -34,6 +132,45 @@ pub fn make_minimal_resource_descriptor(name: &str, alg: &str, digest: &str) -> 
     rd
 }
 
+/// Generates a resource descriptor from a file path by computing its hash.
+///
+/// This function creates a complete resource descriptor for a file by reading the file,
+/// computing its hash using the specified algorithm, and constructing the descriptor
+/// with the file path as the name and the computed hash as the digest.
+///
+/// # Arguments
+///
+/// * `path` - The file system path to the file to be described
+/// * `algorithm` - The hash algorithm to use for computing the file content` digest
+///
+/// # Returns
+///
+/// A `ResourceDescriptor` with the file path and computed hash, or an error if
+/// the file cannot be read or hashed.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - The file at the specified path cannot be read
+/// - Hash computation fails
+/// - The path cannot be converted to a string
+///
+/// # Examples
+///
+/// ```
+/// use crate::in_toto::generate_file_resource_descriptor_from_path;
+/// use atlas_c2pa_lib::cose::HashAlgorithm;
+/// use std::path::Path;
+///
+/// let path = Path::new("test_file.txt");
+/// let rd = generate_file_resource_descriptor_from_path(
+///     &path,
+///     &HashAlgorithm::Sha384
+/// )?;
+///
+/// assert_eq!(rd.name, "test_file.txt");
+/// assert!(rd.digest.contains_key("sha384"));
+/// ```
 pub fn generate_file_resource_descriptor_from_path(
     path: &Path,
     algorithm: &HashAlgorithm,
@@ -49,6 +186,59 @@ pub fn generate_file_resource_descriptor_from_path(
     Ok(rd)
 }
 
+/// Generates a signed in-toto Statement v1 wrapped in a DSSE envelope.
+///
+/// This function creates a complete in-toto attestation by generating a v1 Statement with
+/// the provided subjects and predicate, then signing it using DSSE (Dead Simple Signing
+/// Envelope) format. The resulting envelope contains the signed statement and can be
+/// used for attestation verification.
+///
+/// # Arguments
+///
+/// * `subject` - Array of resource descriptors representing the artifacts being attested
+/// * `predicate_type` - URI identifying the type of predicate (e.g., SLSA provenance type)
+/// * `predicate` - Protobuf struct containing the predicate data specific to the statement type
+/// * `key_path` - Path to the private key file used for signing
+/// * `hash_alg` - Hash algorithm to use for signing operations
+///
+/// # Returns
+///
+/// A signed DSSE `Envelope` containing the in-toto statement, or an error if generation fails.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Statement generation fails
+/// - Statement serialization fails
+/// - Signing operation fails
+/// - Private key cannot be loaded
+///
+/// # Examples
+///
+/// ```no_run
+/// use crate::in_toto::{generate_signed_statement_v1, make_minimal_resource_descriptor};
+/// use atlas_c2pa_lib::cose::HashAlgorithm;
+/// use protobuf::well_known_types::struct_::Struct;
+/// use std::path::PathBuf;
+///
+/// let subjects = vec![make_minimal_resource_descriptor(
+///     "artifact.bin",
+///     "sha384",
+///     "abc123..."
+/// )];
+///
+/// let predicate = Struct::new(); // Needs to be populated with actual predicate data
+///
+/// let envelope = generate_signed_statement_v1(
+///     &subjects,
+///     "https://slsa.dev/provenance/v1",
+///     &predicate,
+///     PathBuf::from("private_key.pem"),
+///     HashAlgorithm::Sha384,
+/// )?;
+///
+/// assert!(envelope.validate());
+/// ```
 pub fn generate_signed_statement_v1(
     subject: &[ResourceDescriptor],
     predicate_type: &str,
