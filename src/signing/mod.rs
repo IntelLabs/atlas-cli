@@ -127,37 +127,7 @@ pub fn pkey_to_secure(pkey: PKey<Private>) -> Result<SecurePrivateKey> {
 mod tests {
     use super::*;
     use crate::error::Result;
-    use openssl::rsa::Rsa;
-    use std::fs::File;
-    use std::io::Write;
-    use tempfile::tempdir;
-
-    // Helper function to generate a temporary private key for testing
-    fn generate_temp_key() -> Result<(SecurePrivateKey, tempfile::TempDir)> {
-        // Create a temporary directory
-        let dir = tempdir()?;
-        let key_path = dir.path().join("test_key.pem");
-
-        // Generate a new RSA key pair (using 2048 bits for speed in tests)
-        let rsa = Rsa::generate(2048).map_err(|e| crate::error::Error::Signing(e.to_string()))?;
-
-        // Convert to PKey
-        let private_key =
-            PKey::from_rsa(rsa).map_err(|e| crate::error::Error::Signing(e.to_string()))?;
-
-        // Write private key to file
-        let pem = private_key
-            .private_key_to_pem_pkcs8()
-            .map_err(|e| crate::error::Error::Signing(e.to_string()))?;
-
-        let mut key_file = File::create(&key_path)?;
-        key_file.write_all(&pem)?;
-
-        // Now load it as SecurePrivateKey
-        let secure_key = load_private_key(&key_path)?;
-
-        Ok((secure_key, dir))
-    }
+    use crate::signing::test_utils::generate_temp_key;
 
     #[test]
     fn test_load_private_key() -> Result<()> {
@@ -431,5 +401,44 @@ TEST_KEY_DATA_THAT_SHOULD_BE_ZEROIZED
         assert!(!invalid_256, "Default should not be SHA-256");
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_utils {
+    use crate::error::Result;
+    use crate::signing::SecurePrivateKey;
+    use crate::signing::load_private_key;
+    use openssl::pkey::PKey;
+    use openssl::rsa::Rsa;
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    // Helper function to generate a temporary private key for testing
+    pub fn generate_temp_key() -> Result<(SecurePrivateKey, tempfile::TempDir)> {
+        // Create a temporary directory
+        let dir = tempdir()?;
+        let key_path = dir.path().join("test_key.pem");
+
+        // Generate a new RSA key pair (using 2048 bits for speed in tests)
+        let rsa = Rsa::generate(2048).map_err(|e| crate::error::Error::Signing(e.to_string()))?;
+
+        // Convert to PKey
+        let private_key =
+            PKey::from_rsa(rsa).map_err(|e| crate::error::Error::Signing(e.to_string()))?;
+
+        // Write private key to file
+        let pem = private_key
+            .private_key_to_pem_pkcs8()
+            .map_err(|e| crate::error::Error::Signing(e.to_string()))?;
+
+        let mut key_file = File::create(&key_path)?;
+        key_file.write_all(&pem)?;
+
+        // Now load it as SecurePrivateKey
+        let secure_key = load_private_key(&key_path)?;
+
+        Ok((secure_key, dir))
     }
 }

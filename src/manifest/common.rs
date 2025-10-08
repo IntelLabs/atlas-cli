@@ -34,6 +34,11 @@ pub enum AssetKind {
     Evaluation,
 }
 
+/// Generates C2PA Assertions based on the asset kind and configuration.
+///
+/// This function creates standardized C2PA assertions including creative work and action assertions
+/// that are tailored to the specific type of asset being attested (model, dataset, software, or evaluation).
+/// It also optionally includes confidential computing (CC) attestations when enabled.
 fn generate_c2pa_assertions(
     config: &ManifestCreationConfig,
     asset_kind: AssetKind,
@@ -175,6 +180,12 @@ fn generate_c2pa_assertions(
     Ok(assertions)
 }
 
+/// Generates a C2PA claim with ingredients and assertions.
+///
+/// This function creates a complete C2PA claim by generating ingredients from the provided file paths,
+/// sorting them alphabetically (as required by the OpenSSF Model Signing specification), and combining
+/// them with generated assertions. The claim includes metadata such as instance ID, creation timestamp,
+/// and claim generator information.
 fn generate_c2pa_claim(config: &ManifestCreationConfig, asset_kind: AssetKind) -> Result<ClaimV2> {
     // Create ingredients using the helper function
     let mut ingredients = Vec::new();
@@ -309,7 +320,58 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
     Ok(())
 }
 
-/// Creates an OpenSSF Model Signing (OMS) compliant manifest for a model
+/// Creates an OpenSSF Model Signing (OMS) compliant C2PA manifest for a model.
+///
+/// This function generates a manifest that conforms to the OpenSSF Model Signing specification,
+/// creating an in-toto format Statement with a DSSE (Dead Simple Signing Envelope). The manifest
+/// is specifically designed for model artifacts and includes proper subject hash calculation
+/// according to OMS requirements.
+///
+/// # Arguments
+///
+/// * `config` - The manifest creation configuration, must include a signing key for OMS format
+///
+/// # Returns
+///
+/// `Ok(())` on successful manifest creation, or an error if creation fails.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - No signing key is provided (OMS format requires signing)
+/// - Subject hash calculation fails
+/// - Manifest serialization fails
+/// - Storage operations fail
+///
+/// # Examples
+///
+/// ```no_run
+/// use atlas_cli::manifest::config::ManifestCreationConfig;
+/// use atlas_cli::manifest::common::create_oms_manifest;
+/// use atlas_c2pa_lib::cose::HashAlgorithm;
+/// use std::path::PathBuf;
+///
+/// let config = ManifestCreationConfig {
+///     name: "test-model".to_string(),
+///     description: Some("A test model".to_string()),
+///     author_name: Some("Test Author".to_string()),
+///     author_org: Some("Test Org".to_string()),
+///     paths: vec![PathBuf::from("model.onnx")],
+///     ingredient_names: vec!["model".to_string()],
+///     hash_alg: HashAlgorithm::Sha384,
+///     key_path: Some(PathBuf::from("private_key.pem")),
+///     output_encoding: "json".to_string(),
+///     print: true,
+///     storage: None,
+///     with_cc: false,
+///     linked_manifests: None,
+///     custom_fields: None,
+///     software_type: None,
+///     version: None,
+/// };
+///
+/// create_oms_manifest(config).unwrap();
+/// ```
 pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
     let claim = generate_c2pa_claim(&config, AssetKind::Model)?;
 
@@ -419,6 +481,37 @@ pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
     Ok(())
 }
 
+/// Lists manifests from storage, optionally filtered by asset type.
+///
+/// This function retrieves all manifests from the provided storage backend and optionally
+/// filters them by asset kind (Model, Dataset, Software, or Evaluation). The filtered
+/// manifests are then displayed with their metadata including ID, name, type, and creation time.
+///
+/// # Arguments
+///
+/// * `storage` - The storage backend to retrieve manifests from
+/// * `asset_kind` - Optional filter for asset type; if None, all manifests are listed
+///
+/// # Returns
+///
+/// `Ok(())` on successful listing, or an error if storage retrieval fails.
+///
+/// # Examples
+///
+/// ```no_run
+/// use atlas_cli::manifest::common::{AssetKind, list_manifests};
+/// use atlas_cli::storage::traits::StorageBackend;
+/// use atlas_cli::storage::filesystem::FilesystemStorage;
+///
+/// // Create or obtain a storage backend instance
+/// let storage_backend: FilesystemStorage = FilesystemStorage::new("/path/to/storage").unwrap();
+///
+/// // List all manifests
+/// list_manifests(&storage_backend, None).unwrap();
+///
+/// // List only model manifests
+/// list_manifests(&storage_backend, Some(AssetKind::Model)).unwrap();
+/// ```
 pub fn list_manifests(storage: &dyn StorageBackend, asset_kind: Option<AssetKind>) -> Result<()> {
     let manifests = storage.list_manifests()?;
 
@@ -459,7 +552,49 @@ pub fn list_manifests(storage: &dyn StorageBackend, asset_kind: Option<AssetKind
     Ok(())
 }
 
-/// Verify a manifest
+/// Performs comprehensive verification of a manifest.
+///
+/// This function verifies a manifest by performing multiple validation steps:
+/// 1. Validates the manifest structure against C2PA specifications
+/// 2. Verifies hash integrity of all ingredients (file-based and URL-based)
+/// 3. Validates cross-references to linked manifests
+/// 4. Checks asset-specific requirements based on manifest type
+///
+/// The verification process ensures that the manifest is structurally valid and that
+/// all referenced artifacts maintain their integrity since the manifest was created.
+///
+/// # Arguments
+///
+/// * `id` - The unique identifier of the manifest to verify
+/// * `storage` - The storage backend to retrieve the manifest and linked manifests
+///
+/// # Returns
+///
+/// `Ok(())` if verification succeeds, or an error describing the verification failure.
+///
+/// # Errors
+///
+/// Returns an error if:
+/// - Manifest cannot be retrieved from storage
+/// - Manifest structure is invalid
+/// - Any ingredient hash verification fails
+/// - Cross-reference verification fails
+/// - Asset-specific requirements are not met
+///
+/// # Examples
+///
+/// ```no_run
+/// use atlas_cli::manifest::common::verify_manifest;
+/// use atlas_cli::storage::traits::StorageBackend;
+/// use atlas_cli::storage::filesystem::FilesystemStorage;
+///
+/// // Create or obtain a storage backend instance
+/// let storage_backend: FilesystemStorage = FilesystemStorage::new("/path/to/storage").unwrap();
+///
+/// let manifest_id = "manifest-123";
+/// verify_manifest(manifest_id, &storage_backend).unwrap();
+/// println!("✓ Manifest verification successful");
+/// ```
 pub fn verify_manifest(id: &str, storage: &dyn StorageBackend) -> Result<()> {
     let manifest = storage.retrieve_manifest(id)?;
 
@@ -796,7 +931,7 @@ fn is_evaluation_manifest(manifest: &Manifest) -> bool {
     }
 }
 
-/// Create an ingredient from a path
+/// Create a C2PA Ingredient from a path
 pub fn create_ingredient_from_path(
     path: &Path,
     name: &str,
@@ -812,6 +947,7 @@ pub fn create_ingredient_from_path(
     )
 }
 
+/// Create a C2PA Ingredient from a path with a specified hash algorithm
 pub fn create_ingredient_from_path_with_algorithm(
     path: &Path,
     name: &str,
@@ -840,6 +976,7 @@ pub fn create_ingredient_from_path_with_algorithm(
     })
 }
 
+/// Helper function to generate a CC attestation assertion
 fn get_cc_attestation_assertion() -> Result<CustomAssertion> {
     let report = match cc_attestation::get_report(false) {
         Ok(r) => r,
@@ -899,4 +1036,82 @@ fn generate_oms_subject_hash(manifest: &Manifest, hash_alg: &HashAlgorithm) -> R
         &ingredient_hashes,
         hash_alg,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::Result;
+    use crate::signing::test_utils::generate_temp_key;
+
+    fn make_test_manifest_config() -> ManifestCreationConfig {
+        let (_secure_key, tmp_dir) = generate_temp_key().unwrap();
+
+        ManifestCreationConfig {
+            name: "test-model".to_string(),
+            description: Some("A test model".to_string()),
+            author_name: Some("Test Author".to_string()),
+            author_org: Some("Test Org".to_string()),
+            paths: vec![],
+            ingredient_names: vec![],
+            hash_alg: HashAlgorithm::Sha384,
+            key_path: Some(tmp_dir.path().join("test_key.pem")),
+            output_encoding: "json".to_string(),
+            print: false,
+            storage: None,
+            with_cc: false,
+            linked_manifests: None,
+            custom_fields: None,
+            software_type: None,
+            version: None,
+        }
+    }
+
+    #[test]
+    fn test_generate_c2pa_assertions() -> Result<()> {
+        let config = make_test_manifest_config();
+
+        let assertions = generate_c2pa_assertions(&config, AssetKind::Model)?;
+        assert!(!assertions.is_empty()); // Should have at least the CreativeWork assertion
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_generate_c2pa_claim() -> Result<()> {
+        let config = make_test_manifest_config();
+        let claim = generate_c2pa_claim(&config, AssetKind::Model)?;
+        assert!(claim.instance_id.starts_with("urn:c2pa:"));
+        assert_eq!(claim.claim_generator_info, "atlas-cli:0.1.1");
+
+        Ok(())
+    }
+
+    // #[test]
+    // fn test_create_manifest() -> Result<()>{
+    //     let config = make_test_manifest_config();
+    //     let result = create_manifest(config, AssetKind::Model);
+    //     assert!(result.is_ok()); // Should succeed even with no ingredients
+
+    //     Ok(())
+    // }
+
+    // #[test]
+    // fn test_create_oms_manifest() -> Result<()> {
+    //     let config = make_test_manifest_config();
+    //     let result = create_oms_manifest(config);
+    //     assert!(result.is_ok()); // Should succeed with the provided key
+
+    //     Ok(())
+    // }
+
+    #[test]
+    fn test_create_oms_manifest_no_key() -> Result<()> {
+        let mut config = make_test_manifest_config();
+        config.key_path = None; // Remove the key path to simulate missing key
+        let result = create_oms_manifest(config);
+        assert!(result.is_err()); // Should fail because OMS requires a signing key
+
+        Ok(())
+    }
 }

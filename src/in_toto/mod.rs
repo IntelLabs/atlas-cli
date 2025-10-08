@@ -14,8 +14,9 @@
 //! ## Examples
 //!
 //! ```no_run
-//! use crate::in_toto::{make_minimal_resource_descriptor, generate_signed_statement_v1};
+//! use atlas_cli::in_toto::{make_minimal_resource_descriptor, generate_signed_statement_v1};
 //! use atlas_c2pa_lib::cose::HashAlgorithm;
+//! use protobuf::well_known_types::struct_::Struct;
 //! use std::path::PathBuf;
 //!
 //! // Create a resource descriptor for an artifact
@@ -26,13 +27,14 @@
 //! );
 //!
 //! // Generate a signed statement (requires valid key and predicate)
+//! let predicate_struct = Struct::new();
 //! let envelope = generate_signed_statement_v1(
 //!     &[resource],
 //!     "https://in-toto.io/Statement/v0.1",
 //!     &predicate_struct,
 //!     PathBuf::from("private_key.pem"),
 //!     HashAlgorithm::Sha384,
-//! );
+//! ).unwrap();
 //! ```
 
 use crate::error::{Error, Result};
@@ -76,10 +78,10 @@ const DSSE_PAYLOAD_TYPE: &str = "application/vnd.in-toto+json";
 /// # Examples
 ///
 /// ```
-/// use crate::in_toto::json_to_struct_proto;
+/// use atlas_cli::in_toto::json_to_struct_proto;
 ///
 /// let json_data = r#"{"name": "test", "version": "1.0"}"#;
-/// let struct_proto = json_to_struct_proto(json_data)?;
+/// let struct_proto = json_to_struct_proto(json_data).unwrap();
 ///
 /// // The resulting struct can be used in in-toto predicates
 /// assert!(!struct_proto.fields.is_empty());
@@ -110,8 +112,8 @@ pub fn json_to_struct_proto(json_str: &str) -> Result<Struct> {
 ///
 /// # Examples
 ///
-/// ```no_run
-/// use crate::in_toto::make_minimal_resource_descriptor;
+/// ```
+/// use atlas_cli::in_toto::make_minimal_resource_descriptor;
 ///
 /// let descriptor = make_minimal_resource_descriptor(
 ///     "model.onnx",
@@ -157,8 +159,8 @@ pub fn make_minimal_resource_descriptor(name: &str, alg: &str, digest: &str) -> 
 ///
 /// # Examples
 ///
-/// ```
-/// use crate::in_toto::generate_file_resource_descriptor_from_path;
+/// ```no_run
+/// use atlas_cli::in_toto::generate_file_resource_descriptor_from_path;
 /// use atlas_c2pa_lib::cose::HashAlgorithm;
 /// use std::path::Path;
 ///
@@ -166,7 +168,7 @@ pub fn make_minimal_resource_descriptor(name: &str, alg: &str, digest: &str) -> 
 /// let rd = generate_file_resource_descriptor_from_path(
 ///     &path,
 ///     &HashAlgorithm::Sha384
-/// )?;
+/// ).unwrap();
 ///
 /// assert_eq!(rd.name, "test_file.txt");
 /// assert!(rd.digest.contains_key("sha384"));
@@ -216,7 +218,7 @@ pub fn generate_file_resource_descriptor_from_path(
 /// # Examples
 ///
 /// ```no_run
-/// use crate::in_toto::{generate_signed_statement_v1, make_minimal_resource_descriptor};
+/// use atlas_cli::in_toto::{generate_signed_statement_v1, make_minimal_resource_descriptor};
 /// use atlas_c2pa_lib::cose::HashAlgorithm;
 /// use protobuf::well_known_types::struct_::Struct;
 /// use std::path::PathBuf;
@@ -235,7 +237,7 @@ pub fn generate_file_resource_descriptor_from_path(
 ///     &predicate,
 ///     PathBuf::from("private_key.pem"),
 ///     HashAlgorithm::Sha384,
-/// )?;
+/// ).unwrap();
 ///
 /// assert!(envelope.validate());
 /// ```
