@@ -24,7 +24,7 @@ use tdx_workload_attestation::get_platform_name;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-const CLAIM_GENERATOR: &str = "atlas-cli:0.1.1";
+const CLAIM_GENERATOR: &str = "atlas-cli:0.2.0";
 
 /// Asset type enum to distinguish between models, datasets, software, and evaluations
 pub enum AssetKind {

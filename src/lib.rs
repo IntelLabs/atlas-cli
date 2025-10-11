@@ -29,7 +29,7 @@
 //! - [Examples](https://github.com/IntelLabs/atlas-cli/blob/main/docs/EXAMPLES.md)
 //! - [Development Guide](https://github.com/IntelLabs/atlas-cli/blob/main/docs/DEVELOPMENT.md)
 
-#![doc(html_root_url = "https://docs.rs/atlas-cli/0.1.0")]
+#![doc(html_root_url = "https://docs.rs/atlas-cli/0.2.0")]
 
 pub mod cc_attestation;
 pub mod cli;

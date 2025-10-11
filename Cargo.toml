@@ -1,6 +1,6 @@
 [package]
 name = "atlas-cli"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "Machine Learning Lifecycle & Transparency Manager - Create and verify manifests for ML models and datasets"
 documentation = "https://docs.rs/atlas-cli"
