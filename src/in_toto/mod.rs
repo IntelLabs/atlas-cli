@@ -262,3 +262,142 @@ pub fn generate_signed_statement_v1(
 
     Ok(envelope)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::signing::test_utils::generate_temp_key;
+    use std::fs;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_json_to_struct_proto_simple() {
+        let json_str = r#"{"name": "test", "version": "1.0"}"#;
+        let result = json_to_struct_proto(json_str);
+
+        assert!(result.is_ok());
+        let struct_proto = result.unwrap();
+        assert_eq!(struct_proto.fields.len(), 2);
+        assert!(struct_proto.fields.contains_key("name"));
+        assert!(struct_proto.fields.contains_key("version"));
+    }
+
+    #[test]
+    fn test_json_to_struct_proto_empty() {
+        let json_str = "{}";
+        let result = json_to_struct_proto(json_str);
+
+        assert!(result.is_ok());
+        let struct_proto = result.unwrap();
+        assert!(struct_proto.fields.is_empty());
+    }
+
+    #[test]
+    fn test_json_to_struct_proto_invalid_json() {
+        let invalid_json = r#"{"invalid": json"#;
+        let result = json_to_struct_proto(invalid_json);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_make_minimal_resource_descriptor() {
+        let name = "test_file.txt";
+        let alg = "sha256";
+        let digest = "abc123def456";
+
+        let rd = make_minimal_resource_descriptor(name, alg, digest);
+
+        assert_eq!(rd.name, name);
+        assert_eq!(rd.digest.len(), 1);
+        assert_eq!(rd.digest.get(alg), Some(&digest.to_string()));
+    }
+
+    #[test]
+    fn test_make_minimal_resource_descriptor_empty_values() {
+        let rd = make_minimal_resource_descriptor("", "", "");
+
+        assert_eq!(rd.name, "");
+        assert_eq!(rd.digest.len(), 1);
+        assert_eq!(rd.digest.get(""), Some(&"".to_string()));
+    }
+
+    #[test]
+    fn test_generate_file_resource_descriptor_from_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test_file.txt");
+        let content = b"test content for hashing";
+
+        // Create test file
+        let mut file = fs::File::create(&file_path).unwrap();
+        file.write_all(content).unwrap();
+
+        let result =
+            generate_file_resource_descriptor_from_path(&file_path, &HashAlgorithm::Sha256);
+
+        assert!(result.is_ok());
+        let rd = result.unwrap();
+        assert_eq!(rd.name, file_path.to_string_lossy());
+        assert!(rd.digest.contains_key("sha256"));
+        assert!(!rd.digest["sha256"].is_empty());
+    }
+
+    #[test]
+    fn test_generate_file_resource_descriptor_missing_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let missing_file = temp_dir.path().join("nonexistent.txt");
+
+        let result =
+            generate_file_resource_descriptor_from_path(&missing_file, &HashAlgorithm::Sha256);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_generate_file_resource_descriptor_different_algorithms() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("test.txt");
+        fs::write(&file_path, b"test data").unwrap();
+
+        let algorithms = vec![
+            HashAlgorithm::Sha256,
+            HashAlgorithm::Sha384,
+            HashAlgorithm::Sha512,
+        ];
+
+        for alg in algorithms {
+            let result = generate_file_resource_descriptor_from_path(&file_path, &alg);
+            assert!(result.is_ok());
+
+            let rd = result.unwrap();
+            assert!(rd.digest.contains_key(alg.as_str()));
+            assert!(!rd.digest[alg.as_str()].is_empty());
+        }
+    }
+
+    #[test]
+    fn test_dsse_payload_type_constant() {
+        assert_eq!(DSSE_PAYLOAD_TYPE, "application/vnd.in-toto+json");
+    }
+
+    #[test]
+    fn test_generate_signed_statement_v1() {
+        let (_secure_key, tmp_dir) = generate_temp_key().unwrap();
+
+        let subjects = vec![make_minimal_resource_descriptor("test", "sha256", "abc123")];
+        let predicate = Struct::new();
+
+        let env = generate_signed_statement_v1(
+            &subjects,
+            "https://example.com/predicate",
+            &predicate,
+            tmp_dir.path().join("test_key.pem"),
+            HashAlgorithm::Sha256,
+        )
+        .unwrap();
+
+        let result = env.validate();
+        assert!(result == true);
+    }
+}

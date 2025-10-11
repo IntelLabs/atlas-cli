@@ -1041,7 +1041,6 @@ fn generate_oms_subject_hash(manifest: &Manifest, hash_alg: &HashAlgorithm) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::Result;
     use crate::signing::test_utils::generate_temp_key;
 
     fn make_test_manifest_config() -> ManifestCreationConfig {
@@ -1068,23 +1067,19 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_c2pa_assertions() -> Result<()> {
+    fn test_generate_c2pa_assertions() {
         let config = make_test_manifest_config();
 
-        let assertions = generate_c2pa_assertions(&config, AssetKind::Model)?;
+        let assertions = generate_c2pa_assertions(&config, AssetKind::Model).unwrap();
         assert!(!assertions.is_empty()); // Should have at least the CreativeWork assertion
-
-        Ok(())
     }
 
     #[test]
-    fn test_generate_c2pa_claim() -> Result<()> {
+    fn test_generate_c2pa_claim() {
         let config = make_test_manifest_config();
-        let claim = generate_c2pa_claim(&config, AssetKind::Model)?;
+        let claim = generate_c2pa_claim(&config, AssetKind::Model).unwrap();
         assert!(claim.instance_id.starts_with("urn:c2pa:"));
         assert_eq!(claim.claim_generator_info, "atlas-cli:0.1.1");
-
-        Ok(())
     }
 
     // #[test]
@@ -1106,12 +1101,10 @@ mod tests {
     // }
 
     #[test]
-    fn test_create_oms_manifest_no_key() -> Result<()> {
+    fn test_create_oms_manifest_no_key() {
         let mut config = make_test_manifest_config();
         config.key_path = None; // Remove the key path to simulate missing key
         let result = create_oms_manifest(config);
         assert!(result.is_err()); // Should fail because OMS requires a signing key
-
-        Ok(())
     }
 }
