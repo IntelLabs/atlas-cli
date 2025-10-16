@@ -6,7 +6,7 @@ use tokio::runtime::Runtime;
 use tracing::info;
 
 use crate::{
-    actions,
+    subcommands as actions,
     command::AtlasCommand,
     config::{ConfigOverrides, WorkflowConfig},
     error::{AtlasError, Result},
