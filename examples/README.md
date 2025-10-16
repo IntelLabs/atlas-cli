@@ -71,14 +71,14 @@ atlas-cli/examples/
 │   ├── config.rs            # Configuration parsing
 │   ├── error.rs             # Error types
 │   ├── utils.rs             # Utility functions
-│   └── actions/             # Action handlers
+│   └── subcommands/             # Action handlers
 │       ├── mod.rs
 │       ├── dataset.rs       # Dataset operations
 │       ├── model.rs         # Model operations
 │       ├── software.rs      # Software operations
 │       ├── evaluation.rs    # Evaluation operations
 │       ├── manifest.rs      # Manifest operations
-│       └── utility.rs       # Utility actions
+│       └── utility.rs       # Utility operations
 │
 ├── workflows/               # Test workflow configurations
 │   ├── simple_demo/         # Basic functionality test
@@ -102,6 +102,7 @@ atlas-cli/examples/
     ├── models/              # Pre-trained models
     └── keys/                # Shared signing keys
 ```
+**Note:** The term "workflow" in this framework refers to a test scenario configuration that defines a sequence of Atlas CLI commands for testing ML provenance pipelines. This is not related to GitHub Actions or other CI/CD workflow systems.
 
 ## Configuration
 
