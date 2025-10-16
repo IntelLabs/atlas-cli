@@ -143,7 +143,7 @@ pub fn make_minimal_resource_descriptor(name: &str, alg: &str, digest: &str) -> 
 /// # Arguments
 ///
 /// * `path` - The file system path to the file to be described
-/// * `algorithm` - The hash algorithm to use for computing the file content` digest
+/// * `algorithm` - The hash algorithm to use for computing the file content digest
 ///
 /// # Returns
 ///
