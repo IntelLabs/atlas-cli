@@ -1079,7 +1079,7 @@ mod tests {
         let config = make_test_manifest_config();
         let claim = generate_c2pa_claim(&config, AssetKind::Model).unwrap();
         assert!(claim.instance_id.starts_with("urn:c2pa:"));
-        assert_eq!(claim.claim_generator_info, "atlas-cli:0.1.1");
+        assert_eq!(claim.claim_generator_info, "atlas-cli:0.2.0");
     }
 
     // #[test]
