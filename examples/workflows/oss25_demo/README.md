@@ -50,7 +50,8 @@ See the parent [README.md](../../README.md) for instructions on building the tes
 Start the database backend (if not already running):
 ```bash
 # Start the database service
-cd storage_service && docker-compose build && docker-compose up -d && cd ..
+git clone https://github.com/IntelLabs/atlas-transparency-log
+cd atlas-transparency-log && docker-compose build && docker-compose up -d
 ```
 
 ## Running the Example

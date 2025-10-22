@@ -96,7 +96,8 @@ Start the database backend for manifest storage:
 
 ```bash
 # Start the database service
-cd storage_service && docker-compose build && docker-compose up -d && cd ..
+git clone https://github.com/IntelLabs/atlas-transparency-log
+cd atlas-transparency-log && docker-compose build && docker-compose up -d
 
 # Verify database is running
 curl http://localhost:8080/health
@@ -373,7 +374,7 @@ environment:
    curl http://localhost:8080/health
    
    # Restart database if needed
-   cd storage_service && docker-compose restart
+   cd atlas-transparency-log-directory && docker-compose restart
    ```
  
 

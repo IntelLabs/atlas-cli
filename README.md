@@ -15,7 +15,7 @@ A command-line interface tool for creating, managing, and verifying Content Prov
 - **Model & Dataset Manifests**: Create C2PA-compliant manifests for ML models and datasets
 - **Cryptographic Signing**: Sign manifests with cryptographic keys for authenticity verification, incl. support for the [OpenSSF Model Signing] (OMS) specification.
 - **Provenance Linking**: Create verifiable links between models, datasets, and ML assets
-- **Multiple Storage Types**: Store manifests in MongoDB, Rekor log, or filesystem backends
+- **Multiple Storage Types**: Store manifests in [Atlas Transparency Log](https://github.com/IntelLabs/atlas-transparency-log), Rekor log, or filesystem backends
 - **Format Support**: Work with models in ONNX, TensorFlow, PyTorch, and Keras formats
 - **TEE Attestation**: Optional support for Trusted Execution Environment (TDX) integration
 
