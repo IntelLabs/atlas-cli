@@ -374,7 +374,7 @@ environment:
    curl http://localhost:8080/health
    
    # Restart database if needed
-   cd atlas-transparency-log-directory && docker-compose restart
+   cd atlas-transparency-log && docker-compose restart
    ```
  
 
