@@ -69,7 +69,7 @@ protobuf = "3.7.2"
 protobuf-json-mapping = "3.7.2"
 
 # HTTP client
-reqwest = { version = "0.12.24", features = ["blocking", "json"] }
+reqwest = { version = "0.12.25", features = ["blocking", "json"] }
 subtle = "2.6.1"
 
 [dev-dependencies]
