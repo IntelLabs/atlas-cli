@@ -971,7 +971,6 @@ impl ManifestFormat {
             }
         };
         // Output metadata_container if requested
-        // TODO: Is there anything to output regarding the envelope, separate from the manifest?
         if config.print || config.storage.is_none() {
             match config.output_encoding.to_lowercase().as_str() {
                 "json" => {
