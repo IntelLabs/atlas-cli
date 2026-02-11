@@ -971,7 +971,7 @@ impl ManifestFormat {
             }
         };
         // Output metadata_container if requested
-        // TODO: Lightly tested with file system storage. Is there anything to output regarding the envelope, separate from the manifest?
+        // TODO: Is there anything to output regarding the envelope, separate from the manifest?
         if config.print || config.storage.is_none() {
             match config.output_encoding.to_lowercase().as_str() {
                 "json" => {
@@ -992,8 +992,8 @@ impl ManifestFormat {
                 }
             }
         }
-        // TODO: We currently store the manifest in both cases (OMS and standalone) regardless of the fact we are creating an envelope in the OMS case.
-        // TODO: Not tested.
+        // TODO: Is there anything to store regarding the envelope, separate from the manifest?
+        // TODO: Lightly tested with filesystem storage.
 
         // Store manifest if storage is provided
         if let Some(storage) = &config.storage {
