@@ -971,7 +971,7 @@ impl ManifestFormat {
             }
         };
         // Output metadata_container if requested
-        // TODO: Not tested. Also, should this stay as output of the manifest only?
+        // TODO: Lightly tested with file system storage. Is there anything to output regarding the envelope, separate from the manifest?
         if config.print || config.storage.is_none() {
             match config.output_encoding.to_lowercase().as_str() {
                 "json" => {
