@@ -56,7 +56,7 @@ walkdir = "2.4"
 zeroize = { version = "1.8", features = ["derive"] }
 
 # CLI and async/runtime
-clap = { version = "4.5", features = ["derive"] }
+clap = { version = "4.6", features = ["derive"] }
 tokio = "1.49.0"
 
 # Serialization
