@@ -2,7 +2,7 @@ use crate::error::{Error, Result};
 
 use super::commands::{
     CCAttestationCommands, DatasetCommands, EvaluationCommands, ManifestCommands, ModelCommands,
-    PipelineCommands, SoftwareCommands,
+    PipelineCommands, RekorCommands, SoftwareCommands,
 };
 use crate::cc_attestation;
 use crate::manifest;
@@ -14,6 +14,26 @@ use crate::storage::filesystem::FilesystemStorage;
 use crate::storage::rekor::RekorStorage;
 
 use crate::StorageBackend;
+use std::path::PathBuf;
+
+fn build_rekor_storage(
+    url: String,
+    key: &Option<PathBuf>,
+    cert: &Option<PathBuf>,
+    fulcio: bool,
+    oidc_token: &Option<String>,
+) -> Result<RekorStorage> {
+    let mut storage = RekorStorage::new_with_url(url)?.with_key(key.clone());
+    if fulcio {
+        let token = oidc_token.as_ref().ok_or_else(|| {
+            Error::Validation("--oidc-token is required when --fulcio is set".to_string())
+        })?;
+        storage = storage.with_fulcio(token.clone());
+    } else {
+        storage = storage.with_cert(cert.clone());
+    }
+    Ok(storage)
+}
 
 pub fn handle_dataset_command(cmd: DatasetCommands) -> Result<()> {
     let _storage = RekorStorage::new()?;
@@ -31,6 +51,9 @@ pub fn handle_dataset_command(cmd: DatasetCommands) -> Result<()> {
             print,
             encoding,
             key,
+            cert,
+            fulcio,
+            oidc_token,
             hash_alg,
             with_tdx,
         } => {
@@ -40,7 +63,13 @@ pub fn handle_dataset_command(cmd: DatasetCommands) -> Result<()> {
                     Some(Box::leak(db_storage))
                 }
                 "rekor" => {
-                    let rekor_storage = Box::new(RekorStorage::new_with_url(*storage_url.clone())?);
+                    let rekor_storage = Box::new(build_rekor_storage(
+                        *storage_url.clone(),
+                        &key,
+                        &cert,
+                        fulcio,
+                        &oidc_token,
+                    )?);
                     Some(Box::leak(rekor_storage))
                 }
                 "local-fs" => {
@@ -118,6 +147,9 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
             encoding,
             format,
             key,
+            cert,
+            fulcio,
+            oidc_token,
             hash_alg,
             with_tdx,
         } => {
@@ -127,7 +159,13 @@ pub fn handle_model_command(cmd: ModelCommands) -> Result<()> {
                     Some(Box::leak(db_storage))
                 }
                 "rekor" => {
-                    let rekor_storage = Box::new(RekorStorage::new_with_url(*storage_url.clone())?);
+                    let rekor_storage = Box::new(build_rekor_storage(
+                        *storage_url.clone(),
+                        &key,
+                        &cert,
+                        fulcio,
+                        &oidc_token,
+                    )?);
                     Some(Box::leak(rekor_storage))
                 }
                 "local-fs" => {
@@ -325,6 +363,9 @@ pub fn handle_evaluation_command(cmd: EvaluationCommands) -> Result<()> {
             print,
             encoding,
             key,
+            cert,
+            fulcio,
+            oidc_token,
             hash_alg,
         } => {
             let storage: Option<&'static dyn StorageBackend> = match storage_type.as_str() {
@@ -333,7 +374,13 @@ pub fn handle_evaluation_command(cmd: EvaluationCommands) -> Result<()> {
                     Some(Box::leak(db_storage))
                 }
                 "rekor" => {
-                    let rekor_storage = Box::new(RekorStorage::new_with_url(*storage_url.clone())?);
+                    let rekor_storage = Box::new(build_rekor_storage(
+                        *storage_url.clone(),
+                        &key,
+                        &cert,
+                        fulcio,
+                        &oidc_token,
+                    )?);
                     Some(Box::leak(rekor_storage))
                 }
                 "local-fs" => {
@@ -350,7 +397,7 @@ pub fn handle_evaluation_command(cmd: EvaluationCommands) -> Result<()> {
                 author_org,
                 author_name,
                 description,
-                linked_manifests: None, // Will be populated by create_manifest
+                linked_manifests: None,
                 storage,
                 print,
                 output_encoding: encoding,
@@ -359,7 +406,7 @@ pub fn handle_evaluation_command(cmd: EvaluationCommands) -> Result<()> {
                 with_cc: false,
                 software_type: None,
                 version: None,
-                custom_fields: None, // Will be populated by create_manifest
+                custom_fields: None,
             };
 
             manifest::evaluation::create_manifest(config, model_id, dataset_id, metrics)
@@ -440,6 +487,9 @@ pub fn handle_software_command(cmd: SoftwareCommands) -> Result<()> {
             print,
             encoding,
             key,
+            cert,
+            fulcio,
+            oidc_token,
             hash_alg,
             with_tdx,
         } => {
@@ -449,7 +499,13 @@ pub fn handle_software_command(cmd: SoftwareCommands) -> Result<()> {
                     Some(Box::leak(db_storage))
                 }
                 "rekor" => {
-                    let rekor_storage = Box::new(RekorStorage::new_with_url(*storage_url.clone())?);
+                    let rekor_storage = Box::new(build_rekor_storage(
+                        *storage_url.clone(),
+                        &key,
+                        &cert,
+                        fulcio,
+                        &oidc_token,
+                    )?);
                     Some(Box::leak(rekor_storage))
                 }
                 "local-fs" => {
@@ -538,6 +594,70 @@ pub fn handle_software_command(cmd: SoftwareCommands) -> Result<()> {
 
             // Link software to dataset
             manifest::link_manifests(&dataset_id, &software_id, storage.as_ref())
+        }
+    }
+}
+
+pub fn handle_rekor_command(cmd: RekorCommands) -> Result<()> {
+    match cmd {
+        RekorCommands::Verify {
+            uuid,
+            manifest,
+            rekor_url,
+        } => {
+            let manifest_bytes = std::fs::read(&manifest).map_err(|e| {
+                Error::Storage(format!(
+                    "Failed to read manifest file {}: {e}",
+                    manifest.display()
+                ))
+            })?;
+
+            let storage = RekorStorage::new_with_url(rekor_url)?;
+            let result = storage.verify_manifest(&manifest_bytes, &uuid)?;
+
+            println!("Rekor Verification Result:");
+            println!("  Log index:       {}", result.log_index);
+            println!("  Integrated time: {}", result.integrated_time);
+            if let Some(identity) = &result.signer_identity {
+                println!("  Signer identity: {identity}");
+            }
+            println!(
+                "  Payload hash:    {}",
+                if result.payload_hash_match {
+                    "MATCH"
+                } else {
+                    "MISMATCH"
+                }
+            );
+            println!(
+                "  Signature:       {}",
+                if result.signature_valid {
+                    "VALID"
+                } else {
+                    "INVALID"
+                }
+            );
+
+            if result.payload_hash_match && result.signature_valid {
+                println!("\nVerification PASSED: manifest matches Rekor entry.");
+                Ok(())
+            } else {
+                Err(Error::Validation(
+                    "Verification FAILED: manifest does not match Rekor entry.".to_string(),
+                ))
+            }
+        }
+        RekorCommands::Get { uuid, rekor_url } => {
+            let storage = RekorStorage::new_with_url(rekor_url)?;
+            let entry = storage.get_rekor_entry(&uuid)?;
+
+            println!("Rekor Entry:");
+            println!("  UUID:            {}", entry.uuid);
+            println!("  Log index:       {}", entry.log_index);
+            println!("  Integrated time: {}", entry.integrated_time);
+            println!("  Log ID:          {}", entry.log_id);
+
+            Ok(())
         }
     }
 }

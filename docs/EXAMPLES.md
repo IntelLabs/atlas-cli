@@ -295,6 +295,48 @@ atlas-cli software link-model \
   --model-id=$MODEL_ID
 ```
 
+## Rekor Transparency Log Examples
+
+### Storing a Manifest in Rekor
+
+```bash
+# Store a model manifest in the public Rekor log
+atlas-cli model create \
+    --paths=model.onnx \
+    --ingredient-names="Model" \
+    --name="My Model" \
+    --key=private.pem \
+    --cert=cert.pem \
+    --storage-type=rekor \
+    --storage-url=https://rekor.sigstore.dev
+# Output: Rekor entry UUID
+# Save the UUID and keep the manifest JSON for later verification
+```
+
+### Verifying a Manifest Against Rekor
+
+```bash
+# Verify that a local manifest matches the Rekor entry
+atlas-cli rekor verify \
+    --uuid <REKOR_UUID> \
+    --manifest manifest.json
+
+# Example output:
+# Rekor Verification Result:
+#   Log index:       1367633236
+#   Integrated time: 1777010403
+#   Payload hash:    MATCH
+#   Signature:       VALID
+#
+# Verification PASSED: manifest matches Rekor entry.
+```
+
+### Looking Up a Rekor Entry
+
+```bash
+atlas-cli rekor get --uuid <REKOR_UUID>
+```
+
 ## Output Format Examples
 
 ### JSON Output Format
