@@ -73,11 +73,11 @@ reqwest = { version = "0.13.2", features = ["blocking", "json"] }
 subtle = "2.6.1"
 
 # Sigstore
-sigstore-types = { path = "../sigstore-rust/crates/sigstore-types" }
-sigstore-rekor = { path = "../sigstore-rust/crates/sigstore-rekor", default-features = false, features = ["rustls"] }
-sigstore-fulcio = { path = "../sigstore-rust/crates/sigstore-fulcio", default-features = false, features = ["rustls"] }
-sigstore-oidc = { path = "../sigstore-rust/crates/sigstore-oidc", default-features = false, features = ["rustls"] }
-sigstore-crypto = { path = "../sigstore-rust/crates/sigstore-crypto" }
+sigstore-types = "0.6.5"
+sigstore-rekor = { version = "0.6.5", default-features = false, features = ["rustls"] }
+sigstore-fulcio = { version = "0.6.5", default-features = false, features = ["rustls"] }
+sigstore-oidc = { version = "0.6.5", default-features = false, features = ["rustls"] }
+sigstore-crypto = "0.6.5"
 
 [dev-dependencies]
 tempfile = "3.27.0"
