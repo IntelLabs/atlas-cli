@@ -181,6 +181,8 @@ atlas-cli model create \
 
 Stores manifests as DSSE envelopes in a [Sigstore Rekor](https://docs.sigstore.dev/logging/overview/) transparency log. Rekor records the payload hash, signature, and certificate — not the full manifest content. You must keep the manifest file locally for later verification.
 
+**Note:** The default Rekor URL is the public Sigstore instance (`https://rekor.sigstore.dev`). Use `--storage-url` to point to a private instance.
+
 Requires a signing key (`--key`) and either a certificate (`--cert`) or Fulcio OIDC flow (`--fulcio --oidc-token`):
 
 ```bash

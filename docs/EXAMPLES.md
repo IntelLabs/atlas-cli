@@ -313,6 +313,21 @@ atlas-cli model create \
 # Save the UUID and keep the manifest JSON for later verification
 ```
 
+### Storing a Manifest with Fulcio (OIDC)
+
+Instead of providing your own key and certificate, you can use Fulcio to obtain a short-lived certificate via an OIDC identity token. An ephemeral signing key is generated automatically.
+
+```bash
+atlas-cli model create \
+    --paths=model.onnx \
+    --ingredient-names="Model" \
+    --name="My Model" \
+    --fulcio \
+    --oidc-token=<OIDC_TOKEN> \
+    --storage-type=rekor \
+    --storage-url=https://rekor.sigstore.dev
+```
+
 ### Verifying a Manifest Against Rekor
 
 ```bash
