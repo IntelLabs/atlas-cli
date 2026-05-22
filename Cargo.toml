@@ -48,7 +48,7 @@ indicatif = "0.18"
 lazy_static = "1.4"
 log = "0.4"
 openssl = "0.10.76"
-sha2 = "0.10"
+sha2 = "0.11"
 thiserror = "2.0.18"
 time = { version = "0.3", features = ["serde"] }
 uuid = { version = "1.23", features = ["v4"] }
