@@ -652,8 +652,9 @@ pub fn handle_rekor_command(cmd: RekorCommands) -> Result<()> {
             let entry = storage.get_rekor_entry(&uuid)?;
 
             println!("Rekor Entry:");
-            let masked_uuid = if entry.uuid.len() > 12 {
-                format!("{}...{}", &entry.uuid[..8], &entry.uuid[entry.uuid.len() - 4..])
+            let uuid_str = entry.uuid.to_string();
+            let masked_uuid = if uuid_str.len() > 12 {
+                format!("{}...{}", &uuid_str[..8], &uuid_str[uuid_str.len() - 4..])
             } else {
                 "[REDACTED]".to_string()
             };
