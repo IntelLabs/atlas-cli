@@ -107,6 +107,16 @@ Subcommands:
 - `link-model` - Link software to a model
 - `link-dataset` - Link software to a dataset
 
+### Rekor Commands
+
+```
+atlas-cli rekor [SUBCOMMAND]
+```
+
+Subcommands:
+- `verify` - Verify a local manifest against a Rekor transparency log entry
+- `get` - Look up a Rekor entry by UUID
+
 ## Configuration Options
 
 ### Keys for Signing
@@ -169,14 +179,52 @@ atlas-cli model create \
 
 ### Rekor Storage
 
-Stores manifests in a Rekor transparency log:
+Stores manifests as DSSE envelopes in a [Sigstore Rekor](https://docs.sigstore.dev/logging/overview/) transparency log. Rekor records the payload hash, signature, and certificate — not the full manifest content. You must keep the manifest file locally for later verification.
+
+**Note:** The default Rekor URL is the public Sigstore instance (`https://rekor.sigstore.dev`). Use `--storage-url` to point to a private instance.
+
+Requires a signing key (`--key`) and either a certificate (`--cert`) or Fulcio OIDC flow (`--fulcio --oidc-token`):
 
 ```bash
-export REKOR_URL=https://rekor.example.com
+# Store with a certificate file
 atlas-cli model create \
+    --paths=model.onnx \
+    --ingredient-names="Model" \
+    --name="My Model" \
+    --key=private.pem \
+    --cert=cert.pem \
     --storage-type=rekor \
-    ...
+    --storage-url=https://rekor.sigstore.dev
+# Output: Rekor entry UUID
+
+# Store with Fulcio (OIDC-based certificate)
+atlas-cli model create \
+    --paths=model.onnx \
+    --ingredient-names="Model" \
+    --name="My Model" \
+    --fulcio \
+    --oidc-token=<TOKEN> \
+    --storage-type=rekor \
+    --storage-url=https://rekor.sigstore.dev
 ```
+
+### Rekor Commands
+
+Look up and verify Rekor entries directly:
+
+```bash
+# Verify a local manifest against a Rekor entry
+atlas-cli rekor verify \
+    --uuid <REKOR_UUID> \
+    --manifest manifest.json
+
+# Look up a Rekor entry
+atlas-cli rekor get --uuid <REKOR_UUID>
+```
+
+Verification checks:
+1. **Payload hash** — SHA-256 of the local manifest matches the hash recorded in Rekor
+2. **Signature** — the DSSE signature is valid against the certificate stored in the entry
 
 ## TDX Attestation
 

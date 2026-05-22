@@ -77,6 +77,19 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
+/// Compute Pre-Authentication Encoding (PAE) per the DSSE specification.
+/// Format: `DSSEv1 {len(type)} {type} {len(body)} {body}`
+pub fn pae(payload_type: &str, payload: &[u8]) -> Vec<u8> {
+    let mut result = Vec::new();
+    result.extend_from_slice(b"DSSEv1 ");
+    result.extend_from_slice(format!("{} ", payload_type.len()).as_bytes());
+    result.extend_from_slice(payload_type.as_bytes());
+    result.push(b' ');
+    result.extend_from_slice(format!("{} ", payload.len()).as_bytes());
+    result.extend_from_slice(payload);
+    result
+}
+
 /// A cryptographic signature with optional key identifier for DSSE envelopes.
 ///
 /// This struct represents a single signature within a DSSE (Dead Simple Signing Envelope).
@@ -377,6 +390,21 @@ impl Envelope {
     pub fn signatures(&self) -> &[Signature] {
         &self.signatures
     }
+
+    /// Convert to a `sigstore_types::DsseEnvelope` for Rekor submission.
+    pub fn to_sigstore_dsse(&self) -> sigstore_types::DsseEnvelope {
+        sigstore_types::DsseEnvelope::new(
+            self.payload_type.clone(),
+            sigstore_types::PayloadBytes::from_bytes(&self.payload),
+            self.signatures
+                .iter()
+                .map(|s| sigstore_types::DsseSignature {
+                    sig: sigstore_types::SignatureBytes::from_bytes(s.sig()),
+                    keyid: sigstore_types::KeyId::new(s.keyid().to_string()),
+                })
+                .collect(),
+        )
+    }
 }
 
 /// Implementation of the `Signable` trait for DSSE envelopes.
@@ -424,18 +452,11 @@ impl Signable for Envelope {
     fn sign(&mut self, key_path: PathBuf, hash_alg: HashAlgorithm) -> Result<()> {
         let private_key = signing::load_private_key(&key_path)?;
 
-        // DSSE requires that payload_type and payload be signed
-        // We assume the payload is public
-        let mut data_to_sign: Vec<u8> = Vec::new();
-        data_to_sign.extend_from_slice(&self.payload_type.clone().into_bytes());
+        let data_to_sign = pae(&self.payload_type, &self.payload);
 
-        // DSSE requires payload to be JSON bytes
-        data_to_sign.extend_from_slice(&self.payload);
-
-        // Use the signing module with the specified algorithm
         let signature = signing::sign_data_with_algorithm(&data_to_sign, &private_key, &hash_alg)?;
 
-        self.add_signature(signature, "".to_string()) // keyid is optional
+        self.add_signature(signature, "".to_string())
     }
 }
 
@@ -445,6 +466,32 @@ mod tests {
     use base64::Engine;
     use base64::prelude::BASE64_STANDARD;
     use serde_json::{from_slice, from_str, json, to_string, to_vec};
+
+    #[test]
+    fn test_pae_spec_vector() {
+        let result = pae("application/example", b"hello world");
+        assert_eq!(result, b"DSSEv1 19 application/example 11 hello world");
+    }
+
+    #[test]
+    fn test_pae_empty_payload() {
+        let result = pae("application/json", b"");
+        assert_eq!(result, b"DSSEv1 16 application/json 0 ");
+    }
+
+    #[test]
+    fn test_to_sigstore_dsse() {
+        let mut envelope = Envelope::new(&vec![1, 2, 3], "test/type".to_string());
+        envelope
+            .add_signature(vec![0xab, 0xcd], "key1".to_string())
+            .unwrap();
+
+        let sigstore_dsse = envelope.to_sigstore_dsse();
+        assert_eq!(sigstore_dsse.payload_type, "test/type");
+        assert_eq!(sigstore_dsse.payload.as_bytes(), &[1, 2, 3]);
+        assert_eq!(sigstore_dsse.signatures.len(), 1);
+        assert_eq!(sigstore_dsse.signatures[0].sig.as_bytes(), &[0xab, 0xcd]);
+    }
 
     #[test]
     fn test_signature_new() {

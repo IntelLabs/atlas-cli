@@ -43,15 +43,6 @@ struct StoredManifest {
     created_at: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct ManifestWrapper {
-    manifest_id: String,
-    manifest_type: String,
-    #[serde(flatten)]
-    manifest: Manifest,
-    created_at: String,
-}
-
 impl DatabaseStorage {
     pub fn new(url: String) -> Result<Self> {
         let client = Client::builder()
