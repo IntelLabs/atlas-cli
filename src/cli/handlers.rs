@@ -652,7 +652,12 @@ pub fn handle_rekor_command(cmd: RekorCommands) -> Result<()> {
             let entry = storage.get_rekor_entry(&uuid)?;
 
             println!("Rekor Entry:");
-            println!("  UUID:            {}", entry.uuid);
+            let masked_uuid = if entry.uuid.len() > 12 {
+                format!("{}...{}", &entry.uuid[..8], &entry.uuid[entry.uuid.len() - 4..])
+            } else {
+                "[REDACTED]".to_string()
+            };
+            println!("  UUID:            {}", masked_uuid);
             println!("  Log index:       {}", entry.log_index);
             println!("  Integrated time: {}", entry.integrated_time);
             println!("  Log ID:          {}", entry.log_id);
