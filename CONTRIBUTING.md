@@ -1,5 +1,26 @@
 # Contributing
 
+### General Guidelines
+
+1. Fork the repository
+2. Create a feature branch for your changes
+3. Make your changes with appropriate tests
+4. Run `make check` to ensure formatting, linting, and tests pass
+5. Submit a pull request with a clear description of the changes
+
+### Code Style
+
+The project uses `rustfmt` and `clippy` for code formatting and linting:
+
+```bash
+make fmt    # Format code
+make lint   # Run the linter
+```
+
+### Documentation
+
+When adding new features, please update the relevant documentation files and include inline documentation for your code.
+
 ### License
 
 <PROJECT NAME> is licensed under the terms in [LICENSE]<link to license file in repo>. By contributing to the project, you agree to the license and copyright terms therein and release your contribution under these terms.
