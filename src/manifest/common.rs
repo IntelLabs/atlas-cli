@@ -26,7 +26,7 @@ use tdx_workload_attestation::get_platform_name;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-const CLAIM_GENERATOR: &str = "atlas-cli:0.2.0";
+const CLAIM_GENERATOR: &str = "atlas-cli:0.3.0";
 
 /// Asset type enum to distinguish between models, datasets, software, and evaluations
 pub enum AssetKind {
@@ -1089,7 +1089,7 @@ mod tests {
         let (_tmp_key_dir, config) = make_test_manifest_config();
         let claim = generate_c2pa_claim(&config, AssetKind::Model).unwrap();
         assert!(claim.instance_id.starts_with("urn:c2pa:"));
-        assert_eq!(claim.claim_generator_info, "atlas-cli:0.2.0");
+        assert_eq!(claim.claim_generator_info, "atlas-cli:0.3.0");
     }
 
     #[test]

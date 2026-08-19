@@ -3,7 +3,7 @@ use atlas_cli::{
         self,
         commands::{
             CCAttestationCommands, DatasetCommands, EvaluationCommands, ManifestCommands,
-            ModelCommands, PipelineCommands, SoftwareCommands,
+            ModelCommands, PipelineCommands, RekorCommands, SoftwareCommands,
         },
     },
     error::Result,
@@ -49,6 +49,11 @@ enum Commands {
         #[command(subcommand)]
         command: PipelineCommands,
     },
+    /// Rekor transparency log commands
+    Rekor {
+        #[command(subcommand)]
+        command: RekorCommands,
+    },
     /// CC Attestation-related commands
     CCAttestation {
         #[command(subcommand)]
@@ -72,6 +77,7 @@ fn main() -> Result<()> {
         Commands::Manifest { command } => cli::handlers::handle_manifest_command(command),
         Commands::Evaluation { command } => cli::handlers::handle_evaluation_command(command),
         Commands::Pipeline { command } => cli::handlers::handle_pipeline_command(command),
+        Commands::Rekor { command } => cli::handlers::handle_rekor_command(command),
         Commands::CCAttestation { command } => {
             cli::handlers::handle_cc_attestation_command(command)
         }

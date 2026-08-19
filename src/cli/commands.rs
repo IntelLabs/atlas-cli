@@ -53,6 +53,18 @@ pub enum DatasetCommands {
         #[arg(long = "key")]
         key: Option<PathBuf>,
 
+        /// Path to X.509 certificate file (PEM format, required for Rekor storage)
+        #[arg(long = "cert")]
+        cert: Option<PathBuf>,
+
+        /// Use Fulcio to obtain a certificate via OIDC (alternative to --cert)
+        #[arg(long = "fulcio", default_value = "false")]
+        fulcio: bool,
+
+        /// OIDC identity token for Fulcio (required when --fulcio is set)
+        #[arg(long = "oidc-token")]
+        oidc_token: Option<String>,
+
         /// Hash algorithm to use for signing (default: sha384)
         #[arg(long = "hash-alg", value_enum, default_value = "sha384")]
         hash_alg: HashAlgorithmChoice,
@@ -136,6 +148,18 @@ pub enum ModelCommands {
         /// Path to private key file for signing (PEM format)
         #[arg(long = "key")]
         key: Option<PathBuf>,
+
+        /// Path to X.509 certificate file (PEM format, required for Rekor storage)
+        #[arg(long = "cert")]
+        cert: Option<PathBuf>,
+
+        /// Use Fulcio to obtain a certificate via OIDC (alternative to --cert)
+        #[arg(long = "fulcio", default_value = "false")]
+        fulcio: bool,
+
+        /// OIDC identity token for Fulcio (required when --fulcio is set)
+        #[arg(long = "oidc-token")]
+        oidc_token: Option<String>,
 
         /// Hash algorithm to use for signing (default: sha384)
         #[arg(long = "hash-alg", value_enum, default_value = "sha384")]
@@ -343,6 +367,18 @@ pub enum EvaluationCommands {
         #[arg(long = "key")]
         key: Option<PathBuf>,
 
+        /// Path to X.509 certificate file (PEM format, required for Rekor storage)
+        #[arg(long = "cert")]
+        cert: Option<PathBuf>,
+
+        /// Use Fulcio to obtain a certificate via OIDC (alternative to --cert)
+        #[arg(long = "fulcio", default_value = "false")]
+        fulcio: bool,
+
+        /// OIDC identity token for Fulcio (required when --fulcio is set)
+        #[arg(long = "oidc-token")]
+        oidc_token: Option<String>,
+
         /// Hash algorithm to use for signing (default: sha384)
         #[arg(long = "hash-alg", value_enum, default_value = "sha384")]
         hash_alg: HashAlgorithmChoice,
@@ -450,6 +486,18 @@ pub enum SoftwareCommands {
         #[arg(long = "key")]
         key: Option<PathBuf>,
 
+        /// Path to X.509 certificate file (PEM format, required for Rekor storage)
+        #[arg(long = "cert")]
+        cert: Option<PathBuf>,
+
+        /// Use Fulcio to obtain a certificate via OIDC (alternative to --cert)
+        #[arg(long = "fulcio", default_value = "false")]
+        fulcio: bool,
+
+        /// OIDC identity token for Fulcio (required when --fulcio is set)
+        #[arg(long = "oidc-token")]
+        oidc_token: Option<String>,
+
         /// Hash algorithm to use for signing (default: sha384)
         #[arg(long = "hash-alg", value_enum, default_value = "sha384")]
         hash_alg: HashAlgorithmChoice,
@@ -532,6 +580,34 @@ pub enum SoftwareCommands {
         /// Storage URL
         #[arg(long = "storage-url", default_value = "http://localhost:8080")]
         storage_url: Box<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum RekorCommands {
+    /// Verify a local manifest against a Rekor transparency log entry
+    Verify {
+        /// Rekor entry UUID
+        #[arg(long = "uuid")]
+        uuid: String,
+
+        /// Path to the local manifest JSON file
+        #[arg(long = "manifest")]
+        manifest: PathBuf,
+
+        /// Rekor server URL
+        #[arg(long = "rekor-url", default_value = "https://rekor.sigstore.dev")]
+        rekor_url: String,
+    },
+    /// Look up a Rekor entry by UUID
+    Get {
+        /// Rekor entry UUID
+        #[arg(long = "uuid")]
+        uuid: String,
+
+        /// Rekor server URL
+        #[arg(long = "rekor-url", default_value = "https://rekor.sigstore.dev")]
+        rekor_url: String,
     },
 }
 

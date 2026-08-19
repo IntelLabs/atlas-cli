@@ -64,23 +64,14 @@ Watch for changes and run tests automatically:
 make watch-test
 ```
 
-## Contribution Guidelines
+## Releases
 
-1. Fork the repository
-2. Create a feature branch for your changes
-3. Make your changes with appropriate tests
-4. Run `make check` to ensure formatting, linting, and tests pass
-5. Submit a pull request with a clear description of the changes
+This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). To publish a new release of atlas-cli, follow these steps:
 
-### Code Style
-
-The project uses `rustfmt` and `clippy` for code formatting and linting:
-
-```bash
-make fmt    # Format code
-make lint   # Run the linter
-```
-
-### Documentation
-
-When adding new features, please update the relevant documentation files and include inline documentation for your code.
+1. Update the Cargo.toml `version` field and run `cargo update` in the root directory
+2. Run `cargo update` in the `examples` directory
+3. Bump any references to the version number in source files (search via `grep -r "<CURRENT_MAJOR>\.<CURRENT_MINOR>\.<CURRENT_PATCH>" ./src`)
+4. Add a new entry to CHANGELOG.md
+5. Open a PR against the main branch with these changes
+7. Create a new release on GitHub with the tag `v<NEW_MAJOR.NEW_MINOR.NEW_PATCH>`
+6. Once the PR is merged, pull the latest head of main and new git tag, and follow the [cargo publish steps](https://doc.rust-lang.org/cargo/reference/publishing.html)
