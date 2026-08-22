@@ -18,6 +18,8 @@ use atlas_c2pa_lib::cross_reference::CrossReference;
 use atlas_c2pa_lib::datetime_wrapper::OffsetDateTimeWrapper;
 use atlas_c2pa_lib::ingredient::{Ingredient, IngredientData};
 use atlas_c2pa_lib::manifest::Manifest;
+use in_toto::dsse::Envelope;
+use serde::Serialize;
 use serde_json::{to_string, to_string_pretty};
 use std::path::{Path, PathBuf};
 use tdx_workload_attestation::get_platform_name;
@@ -231,8 +233,12 @@ fn generate_c2pa_claim(config: &ManifestCreationConfig, asset_kind: AssetKind) -
     })
 }
 
-/// Creates a manifest for a model, dataset, software, or evaluation
-pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) -> Result<()> {
+/// Creates a C2PA manifest for a model, dataset, software, or evaluation
+// TODO: Should I make this public?
+fn create_c2pa_manifest(
+    config: &ManifestCreationConfig,
+    asset_kind: AssetKind,
+) -> Result<Manifest> {
     let claim = generate_c2pa_claim(&config, asset_kind)?;
 
     // Create the manifest
@@ -247,11 +253,6 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
         claim_v2: Some(claim),
         is_active: true,
     };
-
-    // Sign if key is provided
-    if let Some(key_file) = &config.key_path {
-        manifest.sign(key_file.to_path_buf(), config.hash_alg)?;
-    }
 
     if let Some(manifest_ids) = &config.linked_manifests {
         if let Some(storage_backend) = &config.storage {
@@ -286,38 +287,13 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
             println!("Warning: Cannot link manifests without a storage backend");
         }
     }
+    Ok(manifest)
+}
 
-    // Output manifest if requested
-    if config.print || config.storage.is_none() {
-        match config.output_encoding.to_lowercase().as_str() {
-            "json" => {
-                let manifest_json =
-                    to_string_pretty(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
-                println!("{manifest_json}");
-            }
-            "cbor" => {
-                let manifest_cbor = serde_cbor::to_vec(&manifest)
-                    .map_err(|e| Error::Serialization(e.to_string()))?;
-                println!("{}", hex::encode(&manifest_cbor));
-            }
-            _ => {
-                return Err(Error::Validation(format!(
-                    "Invalid output encoding '{}'. Valid options are: json, cbor",
-                    config.output_encoding
-                )));
-            }
-        }
-    }
-
-    // Store manifest if storage is provided
-    if let Some(storage) = &config.storage {
-        if !config.print {
-            let id = storage.store_manifest(&manifest)?;
-            println!("Manifest stored successfully with ID: {id}");
-        }
-    }
-
-    Ok(())
+/// Creates a manifest for a model, dataset, software, or evaluation
+pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) -> Result<()> {
+    let format = ManifestFormat::Standalone;
+    format.create(&config, asset_kind)
 }
 
 /// Creates an OpenSSF Model Signing (OMS) compliant C2PA manifest for a model.
@@ -373,112 +349,8 @@ pub fn create_manifest(config: ManifestCreationConfig, asset_kind: AssetKind) ->
 /// create_oms_manifest(config).unwrap();
 /// ```
 pub fn create_oms_manifest(config: ManifestCreationConfig) -> Result<()> {
-    let claim = generate_c2pa_claim(&config, AssetKind::Model)?;
-
-    // Create the manifest
-    let mut manifest = Manifest {
-        claim_generator: "".to_string(),
-        title: "".to_string(),
-        instance_id: format!("urn:c2pa:{}", Uuid::new_v4()),
-        claim: claim.clone(),
-        ingredients: vec![],
-        created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
-        cross_references: vec![],
-        claim_v2: None,
-        is_active: true,
-    };
-
-    if let Some(manifest_ids) = &config.linked_manifests {
-        if let Some(storage_backend) = &config.storage {
-            for linked_id in manifest_ids {
-                match storage_backend.retrieve_manifest(linked_id) {
-                    Ok(linked_manifest) => {
-                        // Create a JSON representation of the linked manifest
-                        let linked_json = serde_json::to_string(&linked_manifest)
-                            .map_err(|e| Error::Serialization(e.to_string()))?;
-
-                        // Create a hash of the linked manifest
-                        let linked_hash = hash::calculate_hash(linked_json.as_bytes());
-
-                        // Create a cross-reference
-                        let cross_ref = CrossReference {
-                            manifest_url: linked_id.clone(),
-                            manifest_hash: linked_hash,
-                            media_type: Some("application/json".to_string()),
-                        };
-
-                        // Add the cross-reference to the manifest
-                        manifest.cross_references.push(cross_ref);
-
-                        println!("Added link to manifest: {linked_id}");
-                    }
-                    Err(e) => {
-                        println!("Warning: Could not link to manifest {linked_id}: {e}");
-                    }
-                }
-            }
-        } else {
-            println!("Warning: Cannot link manifests without a storage backend");
-        }
-    }
-
-    // Generate the in-toto format Statement and sign the DSSE
-
-    // we need to convert this into a string to serialize into the Struct proto expected by in-toto
-    let manifest_json = to_string(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
-    let manifest_proto = in_toto::json_to_struct_proto(&manifest_json)?;
-
-    let subject_hash = generate_oms_subject_hash(&manifest, &config.hash_alg)?;
-
-    let subject = in_toto::make_minimal_resource_descriptor(
-        &config.name,
-        hash::algorithm_to_string(&config.hash_alg),
-        &subject_hash,
-    );
-
-    let key_path = config
-        .key_path
-        .ok_or_else(|| Error::Validation("OMS format requires a signing key".to_string()))?;
-
-    let envelope = in_toto::generate_signed_statement_v1(
-        &[subject],
-        "https://spec.c2pa.org/specifications/specifications/2.2",
-        &manifest_proto,
-        key_path.to_path_buf(),
-        config.hash_alg,
-    )?;
-
-    // Output manifest if requested
-    if config.print || config.storage.is_none() {
-        match config.output_encoding.to_lowercase().as_str() {
-            "json" => {
-                let envelope_json =
-                    to_string_pretty(&envelope).map_err(|e| Error::Serialization(e.to_string()))?;
-                println!("{envelope_json}");
-            }
-            "cbor" => {
-                let envelope_cbor = serde_cbor::to_vec(&envelope)
-                    .map_err(|e| Error::Serialization(e.to_string()))?;
-                println!("{}", hex::encode(&envelope_cbor));
-            }
-            _ => {
-                return Err(Error::Validation(format!(
-                    "Invalid output encoding '{}'. Valid options are: json, cbor",
-                    config.output_encoding
-                )));
-            }
-        }
-    }
-
-    // Store manifest if storage is provided
-    if let Some(storage) = &config.storage {
-        if !config.print {
-            let id = storage.store_manifest(&manifest)?;
-            println!("Manifest stored successfully with ID: {id}");
-        }
-    }
-
-    Ok(())
+    let format = ManifestFormat::OMS;
+    format.create(&config, AssetKind::Model)
 }
 
 /// Lists manifests from storage, optionally filtered by asset type.
@@ -1038,37 +910,175 @@ fn generate_oms_subject_hash(manifest: &Manifest, hash_alg: &HashAlgorithm) -> R
     ))
 }
 
+enum ManifestFormat {
+    Standalone,
+    OMS,
+    // Future formats...
+}
+
+#[derive(Serialize)]
+pub enum MetadataContainer {
+    C2PAManifest(Manifest),
+    OMSInTotoEnvelope(Envelope),
+}
+
+impl ManifestFormat {
+    fn create(&self, config: &ManifestCreationConfig, asset_kind: AssetKind) -> Result<()> {
+        // TODO: below we may return different things in second position if storage of envelope
+        //       is preferred to storage of the manifest
+        let (metadata_container, manifest) = match (self, &asset_kind) {
+            (Self::Standalone, _) => {
+                let mut manifest = create_c2pa_manifest(&config, asset_kind)?;
+                if let Some(key_file) = &config.key_path {
+                    manifest.sign(key_file.to_path_buf(), config.hash_alg.clone())?;
+                }
+                (MetadataContainer::C2PAManifest(manifest.clone()), manifest)
+            }
+            (Self::OMS, AssetKind::Model) => {
+                let manifest = create_c2pa_manifest(&config, AssetKind::Model)?;
+
+                // Generate the in-toto format Statement and sign the DSSE
+
+                // we need to convert this into a string to serialize into the Struct proto expected by in-toto
+                let manifest_json =
+                    to_string(&manifest).map_err(|e| Error::Serialization(e.to_string()))?;
+                let manifest_proto = in_toto::json_to_struct_proto(&manifest_json)?;
+
+                let subject_hash = generate_oms_subject_hash(&manifest, &config.hash_alg)?;
+
+                let subject = in_toto::make_minimal_resource_descriptor(
+                    &config.name,
+                    hash::algorithm_to_string(&config.hash_alg),
+                    &subject_hash,
+                );
+                let key_path = config.key_path.as_ref().ok_or_else(|| {
+                    Error::Validation("OMS format requires a signing key".to_string())
+                })?;
+
+                let envelope = in_toto::generate_signed_statement_v1(
+                    &[subject],
+                    "https://spec.c2pa.org/specifications/specifications/2.2",
+                    &manifest_proto,
+                    key_path.to_path_buf(),
+                    config.hash_alg.clone(),
+                )?;
+                (MetadataContainer::OMSInTotoEnvelope(envelope), manifest)
+            }
+            (Self::OMS, _) => {
+                return Err(Error::Validation(
+                    "OMS format is only supported for AssetKind::Model".to_string(),
+                ));
+            }
+        };
+        // Output metadata_container if requested
+        if config.print || config.storage.is_none() {
+            match config.output_encoding.to_lowercase().as_str() {
+                "json" => {
+                    let metadata_container_json = to_string_pretty(&metadata_container)
+                        .map_err(|e| Error::Serialization(e.to_string()))?;
+                    println!("{metadata_container_json}");
+                }
+                "cbor" => {
+                    let metadata_container_cbor = serde_cbor::to_vec(&metadata_container)
+                        .map_err(|e| Error::Serialization(e.to_string()))?;
+                    println!("{}", hex::encode(&metadata_container_cbor));
+                }
+                _ => {
+                    return Err(Error::Validation(format!(
+                        "Invalid output encoding '{}'. Valid options are: json, cbor",
+                        config.output_encoding
+                    )));
+                }
+            }
+        }
+        // TODO: Is there anything to store regarding the envelope, separate from the manifest?
+        // TODO: Lightly tested with filesystem storage.
+
+        // Store manifest if storage is provided
+        if let Some(storage) = &config.storage {
+            if !config.print {
+                let id = storage.store_manifest(&manifest)?;
+                println!("Manifest stored successfully with ID: {id}");
+            }
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::signing::test_utils::generate_temp_key;
+    use std::fs::OpenOptions;
+    use tempfile::TempPath;
 
-    fn make_test_manifest_config() -> ManifestCreationConfig {
-        let (_secure_key, tmp_dir) = generate_temp_key().unwrap();
+    const TEST_ASSET_FILENAME: &str = "empty_test_model_file_not_expected_to_persist.onnx";
 
-        ManifestCreationConfig {
-            name: "test-model".to_string(),
-            description: Some("A test model".to_string()),
-            author_name: Some("Test Author".to_string()),
-            author_org: Some("Test Org".to_string()),
-            paths: vec![],
-            ingredient_names: vec![],
-            hash_alg: HashAlgorithm::Sha384,
-            key_path: Some(tmp_dir.path().join("test_key.pem")),
-            output_encoding: "json".to_string(),
-            print: false,
-            storage: None,
-            with_cc: false,
-            linked_manifests: None,
-            custom_fields: None,
-            software_type: None,
-            version: None,
-        }
+    // Helper function to get the module directory (for a predetermined directory in which to create temporary test files)
+    fn module_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src")
+    }
+
+    fn make_test_manifest_config() -> (tempfile::TempDir, ManifestCreationConfig) {
+        let (_secure_key, tmp_key_dir) = generate_temp_key().unwrap();
+        let key_path = tmp_key_dir.path().join("test_key.pem");
+        // must return the temp_key_dir (temp dirs get deleted when out of scope)
+        (
+            tmp_key_dir,
+            ManifestCreationConfig {
+                name: "test-model".to_string(),
+                description: Some("A test model".to_string()),
+                author_name: Some("Test Author".to_string()),
+                author_org: Some("Test Org".to_string()),
+                paths: vec![],
+                ingredient_names: vec![],
+                hash_alg: HashAlgorithm::Sha384,
+                key_path: Some(key_path),
+                output_encoding: "json".to_string(),
+                print: false,
+                storage: None,
+                with_cc: false,
+                linked_manifests: None,
+                custom_fields: None,
+                software_type: None,
+                version: None,
+            },
+        )
+    }
+
+    fn make_test_oms_manifest_config() -> (tempfile::TempDir, PathBuf, ManifestCreationConfig) {
+        let (_secure_key, tmp_key_dir) = generate_temp_key().unwrap();
+        let key_path = tmp_key_dir.path().join("test_key.pem");
+        let asset_dirpath = module_dir();
+        let path = asset_dirpath.join(TEST_ASSET_FILENAME);
+        // return the temp_dir (avoid deletion due to coming out of scope)
+        (
+            tmp_key_dir,
+            asset_dirpath,
+            ManifestCreationConfig {
+                name: "test-model".to_string(),
+                description: Some("A test model".to_string()),
+                author_name: Some("Test Author".to_string()),
+                author_org: Some("Test Org".to_string()),
+                paths: vec![path],
+                ingredient_names: vec!["Test model ingredient".to_string()], // OMS requires at least one ingredient
+                hash_alg: HashAlgorithm::Sha384,
+                key_path: Some(key_path),
+                output_encoding: "json".to_string(),
+                print: false,
+                storage: None,
+                with_cc: false,
+                linked_manifests: None,
+                custom_fields: None,
+                software_type: None,
+                version: None,
+            },
+        )
     }
 
     #[test]
     fn test_generate_c2pa_assertions() {
-        let config = make_test_manifest_config();
+        let (_tmp_key_dir, config) = make_test_manifest_config();
 
         let assertions = generate_c2pa_assertions(&config, AssetKind::Model).unwrap();
         assert!(!assertions.is_empty()); // Should have at least the CreativeWork assertion
@@ -1076,33 +1086,43 @@ mod tests {
 
     #[test]
     fn test_generate_c2pa_claim() {
-        let config = make_test_manifest_config();
+        let (_tmp_key_dir, config) = make_test_manifest_config();
         let claim = generate_c2pa_claim(&config, AssetKind::Model).unwrap();
         assert!(claim.instance_id.starts_with("urn:c2pa:"));
         assert_eq!(claim.claim_generator_info, "atlas-cli:0.3.0");
     }
 
-    // #[test]
-    // fn test_create_manifest() -> Result<()>{
-    //     let config = make_test_manifest_config();
-    //     let result = create_manifest(config, AssetKind::Model);
-    //     assert!(result.is_ok()); // Should succeed even with no ingredients
+    #[test]
+    fn test_create_manifest() -> Result<()> {
+        let (_tmp_key_dir, config) = make_test_manifest_config();
+        let result = create_manifest(config, AssetKind::Model);
+        assert!(result.is_ok()); // Should succeed even with no ingredients
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 
-    // #[test]
-    // fn test_create_oms_manifest() -> Result<()> {
-    //     let config = make_test_manifest_config();
-    //     let result = create_oms_manifest(config);
-    //     assert!(result.is_ok()); // Should succeed with the provided key
+    #[test]
+    fn test_create_oms_manifest() -> Result<()> {
+        let (_tmp_key_dir, asset_dirpath, config) = make_test_oms_manifest_config();
+        let asset_path = asset_dirpath.join(TEST_ASSET_FILENAME);
+        let _file = OpenOptions::new()
+            .write(true)
+            .create_new(true) // Ensure if file already exists that we do not overwrite it
+            .open(&asset_path)?;
+        let _temp_path = TempPath::from_path(asset_path); // Ensure the file is deleted after the test
+        let result = create_oms_manifest(config);
+        assert!(
+            result.is_ok(),
+            "create_oms_manifest failed with error: {:#?}",
+            result.err()
+        ); // Should succeed with the provided key
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
 
     #[test]
     fn test_create_oms_manifest_no_key() {
-        let mut config = make_test_manifest_config();
+        let (_dir, _asset_dirpath, mut config) = make_test_oms_manifest_config();
         config.key_path = None; // Remove the key path to simulate missing key
         let result = create_oms_manifest(config);
         assert!(result.is_err()); // Should fail because OMS requires a signing key
