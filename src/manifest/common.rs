@@ -7,7 +7,7 @@ use crate::manifest::utils::{
     determine_dataset_type, determine_format, determine_model_type, determine_software_type,
 };
 use crate::signing::signable::Signable;
-use crate::storage::traits::{ArtifactLocation, StorageBackend};
+use crate::storage::traits::StorageBackend;
 use atlas_c2pa_lib::assertion::{
     Action, ActionAssertion, Assertion, Author, CreativeWorkAssertion, CustomAssertion,
 };
@@ -608,60 +608,38 @@ pub fn verify_manifest(id: &str, storage: &dyn StorageBackend) -> Result<()> {
     for ingredient in &manifest.ingredients {
         println!("Verifying ingredient: {}", ingredient.title);
 
-        if ingredient.data.url.starts_with("file://") {
-            let path = PathBuf::from(ingredient.data.url.trim_start_matches("file://"));
+        // Resolve the ingredient URL to a local path. An ingredient whose content
+        // cannot be read cannot be verified, so anything unresolvable is rejected
+        // rather than skipped.
+        let path = resolve_verifiable_path(&ingredient.data.url).map_err(|reason| {
+            Error::Validation(format!(
+                "Cannot verify component {}: {reason}",
+                ingredient.title
+            ))
+        })?;
 
-            // Create ArtifactLocation for verification
-            let location = ArtifactLocation {
-                url: ingredient.data.url.clone(),
-                file_path: Some(path),
-                hash: ingredient.data.hash.clone(),
-            };
+        // Use the algorithm implied by the recorded digest, matching how
+        // cross-references below are verified.
+        let algorithm = hash::detect_hash_algorithm(&ingredient.data.hash);
+        let calculated_hash =
+            hash::calculate_file_hash_with_algorithm(&path, &algorithm).map_err(|e| {
+                Error::Validation(format!(
+                    "Error verifying component {}: {}. The file may be missing or inaccessible.",
+                    ingredient.title, e
+                ))
+            })?;
 
-            // Verify the hash and handle the result
-            match location.verify() {
-                Ok(true) => {
-                    println!(
-                        "✓ Successfully verified hash for component: {}",
-                        ingredient.title
-                    );
-                }
-                Ok(false) => {
-                    return Err(Error::Validation(format!(
-                        "Hash verification failed for component: {}. The file may have been modified.",
-                        ingredient.title
-                    )));
-                }
-                Err(e) => {
-                    return Err(Error::Validation(format!(
-                        "Error verifying component {}: {}. The file may be missing or inaccessible.",
-                        ingredient.title, e
-                    )));
-                }
-            }
-        } else {
-            // For non-file URLs, try direct hash verification
-            match hash::calculate_file_hash(PathBuf::from(&ingredient.data.url)) {
-                Ok(calculated_hash) => {
-                    if calculated_hash != ingredient.data.hash {
-                        return Err(Error::Validation(format!(
-                            "Hash mismatch for ingredient: {}",
-                            ingredient.title
-                        )));
-                    }
-                    println!(
-                        "✓ Successfully verified hash for component: {}",
-                        ingredient.title
-                    );
-                }
-                Err(_) => {
-                    println!(
-                        "⚠ Warning: Component {} does not use file:// URL scheme and could not be verified directly",
-                        ingredient.title
-                    );
-                }
-            }
+        if calculated_hash != ingredient.data.hash {
+            return Err(Error::Validation(format!(
+                "Hash verification failed for component: {}. The file may have been modified.",
+                ingredient.title
+            )));
         }
+
+        println!(
+            "✓ Successfully verified hash for component: {}",
+            ingredient.title
+        );
     }
 
     // Step 3: Verify cross-references if present
@@ -694,6 +672,45 @@ pub fn verify_manifest(id: &str, storage: &dyn StorageBackend) -> Result<()> {
 
     println!("✓ Manifest verification successful");
     Ok(())
+}
+
+/// Returns true if `url` starts with a URL scheme (`scheme:`).
+///
+/// A scheme must be at least two characters long so that a Windows drive letter
+/// such as `C:\models\m.onnx` is treated as a path rather than a scheme.
+fn has_url_scheme(url: &str) -> bool {
+    let Some(separator) = url.find(':') else {
+        return false;
+    };
+    let scheme = &url[..separator];
+
+    scheme.len() >= 2
+        && scheme.starts_with(|c: char| c.is_ascii_alphabetic())
+        && scheme
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'))
+}
+
+/// Resolve an ingredient URL to a local path whose contents can be hashed.
+///
+/// Accepts `file://` URLs and bare local paths. Any other scheme (`https://`,
+/// `s3://`, a URN, ...) refers to content this tool cannot read, so it cannot be
+/// verified and is rejected: verification must never report success for an
+/// ingredient whose hash was not actually checked.
+///
+/// On failure returns the reason, for the caller to attribute to an ingredient.
+fn resolve_verifiable_path(url: &str) -> std::result::Result<PathBuf, String> {
+    if let Some(path) = url.strip_prefix("file://") {
+        return Ok(PathBuf::from(path));
+    }
+
+    if has_url_scheme(url) {
+        return Err(format!(
+            "unsupported URL scheme in '{url}'. Only file:// URLs and local paths can be verified"
+        ));
+    }
+
+    Ok(PathBuf::from(url))
 }
 
 // Verify asset-specific requirements based on the manifest content
