@@ -110,7 +110,11 @@ impl ArtifactLocation {
     pub fn verify(&self) -> Result<bool> {
         match &self.file_path {
             Some(path) => {
-                let current_hash = crate::hash::calculate_file_hash(path)?;
+                // Hash with the algorithm implied by the recorded digest rather than
+                // assuming the default, so SHA-256 and SHA-512 artifacts verify too.
+                let algorithm = crate::hash::detect_hash_algorithm(&self.hash);
+                let current_hash =
+                    crate::hash::calculate_file_hash_with_algorithm(path, &algorithm)?;
                 Ok(current_hash == self.hash)
             }
             None => Err(Error::Validation(

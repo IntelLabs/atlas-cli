@@ -1,6 +1,6 @@
 use super::common::MockStorageBackend;
 use crate::error::Result;
-use crate::hash::calculate_file_hash;
+use crate::hash::{calculate_file_hash, calculate_file_hash_with_algorithm};
 use crate::manifest::{common::AssetKind, dataset, model};
 use crate::utils::safe_create_file;
 use atlas_c2pa_lib::assertion::{
@@ -8,6 +8,7 @@ use atlas_c2pa_lib::assertion::{
 };
 use atlas_c2pa_lib::asset_type::AssetType;
 use atlas_c2pa_lib::claim::ClaimV2;
+use atlas_c2pa_lib::cose::HashAlgorithm;
 use atlas_c2pa_lib::datetime_wrapper::OffsetDateTimeWrapper;
 use atlas_c2pa_lib::ingredient::{Ingredient, IngredientData};
 use atlas_c2pa_lib::manifest::Manifest;
@@ -124,6 +125,148 @@ fn test_model_verification() -> Result<()> {
     Ok(())
 }
 
+/// An ingredient whose content cannot be fetched must never be reported as
+/// verified: a non-file:// URL is rejected rather than silently skipped.
+#[test]
+fn test_non_file_url_ingredient_is_rejected() -> Result<()> {
+    let manifest_id = format!("test_manifest_{}", Uuid::new_v4());
+    let ingredient = create_test_ingredient_with_url(
+        "https://attacker.example/backdoored-model.onnx",
+        "deadbeef".repeat(12).as_str(),
+        "sha384",
+        "Remote Model",
+        AssetType::ModelOnnx,
+        "application/onnx",
+    );
+
+    let manifest = create_test_manifest_internal(
+        manifest_id.clone(),
+        vec![ingredient],
+        "Remote Model Manifest",
+        AssetKind::Model,
+    )?;
+    let storage = MockStorageBackend::new(manifest);
+
+    assert!(
+        model::verify_model_manifest(&manifest_id, &storage).is_err(),
+        "Ingredient with a non-file:// URL must fail verification, not be skipped"
+    );
+
+    Ok(())
+}
+
+/// A file:// ingredient whose file is gone cannot be hashed, so verification
+/// must fail rather than continue.
+#[test]
+fn test_missing_file_ingredient_is_rejected() -> Result<()> {
+    let dir = tempdir()?;
+    let model_path = dir.path().join("missing_model.onnx");
+    {
+        let mut file = safe_create_file(&model_path, false)?;
+        file.write_all(b"mock model data")?;
+    }
+
+    let manifest_id = format!("test_manifest_{}", Uuid::new_v4());
+    let ingredient = create_test_ingredient_internal(
+        &model_path,
+        "Missing Model",
+        AssetType::ModelOnnx,
+        "application/onnx",
+    )?;
+
+    let manifest = create_test_manifest_internal(
+        manifest_id.clone(),
+        vec![ingredient],
+        "Missing Model Manifest",
+        AssetKind::Model,
+    )?;
+    let storage = MockStorageBackend::new(manifest);
+
+    std::fs::remove_file(&model_path)?;
+
+    assert!(
+        model::verify_model_manifest(&manifest_id, &storage).is_err(),
+        "Ingredient whose file is missing must fail verification"
+    );
+
+    Ok(())
+}
+
+/// Verification must hash with the algorithm the manifest actually used, not a
+/// hardcoded default, or SHA-256 manifests fail as if they had been tampered with.
+#[test]
+fn test_verification_honors_sha256_ingredient_hash() -> Result<()> {
+    let dir = tempdir()?;
+    let model_path = dir.path().join("sha256_model.onnx");
+    {
+        let mut file = safe_create_file(&model_path, false)?;
+        file.write_all(b"mock model data")?;
+    }
+
+    let manifest_id = format!("test_manifest_{}", Uuid::new_v4());
+    let ingredient = create_test_ingredient_with_url(
+        &format!("file://{}", model_path.to_string_lossy()),
+        &calculate_file_hash_with_algorithm(&model_path, &HashAlgorithm::Sha256)?,
+        "sha256",
+        "Sha256 Model",
+        AssetType::ModelOnnx,
+        "application/onnx",
+    );
+
+    let manifest = create_test_manifest_internal(
+        manifest_id.clone(),
+        vec![ingredient],
+        "Sha256 Model Manifest",
+        AssetKind::Model,
+    )?;
+    let storage = MockStorageBackend::new(manifest);
+
+    assert!(
+        model::verify_model_manifest(&manifest_id, &storage).is_ok(),
+        "A manifest created with --hash-alg sha256 must verify successfully"
+    );
+
+    // Modify file
+    {
+        let mut file = safe_create_file(&model_path, false)?;
+        file.write_all(b"modified model data")?;
+    }
+
+    assert!(
+        model::verify_model_manifest(&manifest_id, &storage).is_err(),
+        "Verification should fail after file modification"
+    );
+
+    Ok(())
+}
+
+fn create_test_ingredient_with_url(
+    url: &str,
+    hash: &str,
+    alg: &str,
+    title: &str,
+    asset_type: AssetType,
+    format: &str,
+) -> Ingredient {
+    Ingredient {
+        title: title.to_string(),
+        format: format.to_string(),
+        relationship: "componentOf".to_string(),
+        document_id: format!("uuid:{}", Uuid::new_v4()),
+        instance_id: format!("uuid:{}", Uuid::new_v4()),
+        data: IngredientData {
+            url: url.to_string(),
+            alg: alg.to_string(),
+            hash: hash.to_string(),
+            data_types: vec![asset_type],
+            linked_ingredient_url: None,
+            linked_ingredient_hash: None,
+        },
+        linked_ingredient: None,
+        public_key: None,
+    }
+}
+
 fn create_test_ingredient_internal(
     path: &std::path::Path,
     title: &str,
@@ -141,7 +284,7 @@ fn create_test_ingredient_internal(
         instance_id: format!("uuid:{}", Uuid::new_v4()),
         data: IngredientData {
             url,
-            alg: "sha256".to_string(),
+            alg: "sha384".to_string(),
             hash,
             data_types: vec![asset_type],
             linked_ingredient_url: None,
