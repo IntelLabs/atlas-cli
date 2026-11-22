@@ -184,7 +184,7 @@ impl StorageBackend for FilesystemStorage {
             // Write back to file
             let json = serde_json::to_string_pretty(&index)
                 .map_err(|e| Error::Serialization(e.to_string()))?;
-            let mut file = safe_create_file(&path, false)?;
+            let mut file = safe_create_file(&index_path, false)?;
             file.write_all(json.as_bytes())?;
         }
 
