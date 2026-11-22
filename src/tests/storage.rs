@@ -360,3 +360,55 @@ fn test_cli_handler_storage_selection() -> Result<()> {
 
     Ok(())
 }
+
+#[test]
+fn test_filesystem_delete_updates_index() -> Result<()> {
+    let dir = tempdir()?;
+    let fs_storage = FilesystemStorage::new(dir.path().to_string_lossy().to_string())?;
+
+    let make_manifest = |id: &str| Manifest {
+        claim_generator: "test".to_string(),
+        title: format!("Manifest {id}"),
+        instance_id: id.to_string(),
+        ingredients: Vec::new(),
+        claim: create_default_claim(),
+        created_at: OffsetDateTimeWrapper(OffsetDateTime::now_utc()),
+        cross_references: vec![],
+        claim_v2: None,
+        is_active: true,
+    };
+
+    let deleted_id = format!("deleted_{}", Uuid::new_v4());
+    let kept_id = format!("kept_{}", Uuid::new_v4());
+    fs_storage.store_manifest(&make_manifest(&deleted_id))?;
+    fs_storage.store_manifest(&make_manifest(&kept_id))?;
+
+    fs_storage.delete_manifest(&deleted_id)?;
+
+    // The manifest file must be gone, not replaced by other content.
+    let deleted_file = dir.path().join(format!(
+        "{}.json",
+        hex::encode(sha2::Sha256::digest(deleted_id.as_bytes()))
+    ));
+    assert!(
+        !deleted_file.exists(),
+        "deleted manifest file was recreated: {}",
+        fs::read_to_string(&deleted_file).unwrap_or_default()
+    );
+
+    // The index must drop the deleted id and keep the other one.
+    let index: std::collections::HashMap<String, String> =
+        serde_json::from_str(&fs::read_to_string(dir.path().join("manifest_index.json"))?)?;
+    assert!(!index.contains_key(&deleted_id));
+    assert!(index.contains_key(&kept_id));
+
+    // Retrieving or deleting it again reports "not found".
+    match fs_storage.retrieve_manifest(&deleted_id) {
+        Err(crate::error::Error::Storage(msg)) => assert!(msg.contains("not found")),
+        other => panic!("expected a not-found error, got {other:?}"),
+    }
+    assert!(fs_storage.delete_manifest(&deleted_id).is_err());
+    assert_eq!(fs_storage.retrieve_manifest(&kept_id)?.instance_id, kept_id);
+
+    Ok(())
+}
